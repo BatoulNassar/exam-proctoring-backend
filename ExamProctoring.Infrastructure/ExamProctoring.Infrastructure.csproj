@@ -7,21 +7,27 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Seeding\**" />
+    <EmbeddedResource Remove="Seeding\**" />
+    <None Remove="Seeding\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ExamProctoring.Application\ExamProctoring.Application.csproj" />
     <ProjectReference Include="..\ExamProctoring.Domain\ExamProctoring.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Services\" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.14">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.10" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
   </ItemGroup>
 
 </Project>

@@ -20,7 +20,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
                 .HasForeignKey(ur => ur.user_id);
 
             builder.HasOne(ur => ur.Role)
-                .WithMany(r => r.User_Roles)
+                .WithMany(r => r.UserRoles)
                 .HasForeignKey(ur => ur.role_id);
             builder.ConfigureAuditFields();
         }

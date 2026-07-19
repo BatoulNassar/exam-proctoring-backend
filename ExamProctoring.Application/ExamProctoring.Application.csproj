@@ -6,21 +6,30 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+
   <ItemGroup>
     <ProjectReference Include="..\ExamProctoring.Domain\ExamProctoring.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="DTOs\" />
-    <Folder Include="Use Cases\" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="9.0.1" />
     <PackageReference Include="libphonenumber-csharp" Version="9.0.34" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.14">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.19.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.2" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\Alerts\Validators\" />
+    <Folder Include="Features\AuditLogs\Validators\" />
+    <Folder Include="Features\ExamSessions\Validators\" />
+    <Folder Include="Features\QuestionBank\DTOs\" />
+  </ItemGroup>
+
 
 </Project>

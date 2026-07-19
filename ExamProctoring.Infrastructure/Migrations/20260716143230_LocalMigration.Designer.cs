@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ExamProctoring.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260713160311_ServerMigration")]
-    partial class ServerMigration
+    [Migration("20260716143230_LocalMigration")]
+    partial class LocalMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -764,6 +764,63 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.ToTable("QuestionBank", (string)null);
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.RefreshToken", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("expires_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("is_deleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("replaced_by_token")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("revoked_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("token")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.Property<int>("user_id")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("token")
+                        .IsUnique();
+
+                    b.HasIndex("user_id");
+
+                    b.ToTable("RefreshToken", (string)null);
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.Role", b =>
                 {
                     b.Property<int>("id")
@@ -1059,8 +1116,11 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<string>("phone_number")
+                    b.Property<string>("password_hash")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("phone_number")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
@@ -1071,7 +1131,6 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("user_name")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
@@ -1081,7 +1140,8 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("user_name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[user_name] IS NOT NULL");
 
                     b.ToTable("User", (string)null);
                 });
@@ -1299,7 +1359,7 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("ExamProctoring.Domain.Entities.Role", "Role")
-                        .WithMany("Permission_Roles")
+                        .WithMany("PermissionRoles")
                         .HasForeignKey("role_id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1350,6 +1410,17 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("Admin");
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("user_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.StudentAnswer", b =>
                 {
                     b.HasOne("ExamProctoring.Domain.Entities.Question", "Question")
@@ -1391,7 +1462,7 @@ namespace ExamProctoring.Infrastructure.Migrations
             modelBuilder.Entity("ExamProctoring.Domain.Entities.User_Roles", b =>
                 {
                     b.HasOne("ExamProctoring.Domain.Entities.Role", "Role")
-                        .WithMany("User_Roles")
+                        .WithMany("UserRoles")
                         .HasForeignKey("role_id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1471,9 +1542,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.Role", b =>
                 {
-                    b.Navigation("Permission_Roles");
+                    b.Navigation("PermissionRoles");
 
-                    b.Navigation("User_Roles");
+                    b.Navigation("UserRoles");
                 });
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.Student", b =>
@@ -1503,6 +1574,8 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("ProctorActions");
 
                     b.Navigation("QuestionBanks");
+
+                    b.Navigation("RefreshTokens");
 
                     b.Navigation("UserRoles");
                 });

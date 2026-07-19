@@ -16,7 +16,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.HasKey(pr => pr.id );
 
             builder.HasOne(pr => pr.Role)
-                .WithMany(r => r.Permission_Roles)
+                .WithMany(r => r.PermissionRoles)
                 .HasForeignKey(pr => pr.role_id)
                 .OnDelete(DeleteBehavior.Cascade);
 

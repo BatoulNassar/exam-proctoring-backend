@@ -15,9 +15,9 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
         {
             builder.ToTable("User");
             builder.HasKey(u => u.id);
-            builder.Property(u => u.user_name).IsRequired().HasMaxLength(50);
+            builder.Property(u => u.user_name).HasMaxLength(50);
             builder.Property(u => u.email).IsRequired().HasMaxLength(100);
-            builder.Property(u => u.phone_number).IsRequired().HasMaxLength(20);
+            builder.Property(u => u.phone_number).HasMaxLength(20);
             builder.Property(u => u.full_name).IsRequired().HasMaxLength(100);
 
             builder.HasIndex(u => u.user_name).IsUnique();

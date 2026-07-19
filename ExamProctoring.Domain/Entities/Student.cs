@@ -17,7 +17,7 @@ namespace ExamProctoring.Domain.Entities
         public string middle_name { get; set; }
         public string last_name { get; set; }
         public string university_number { get; set; }
-        public string face_id { get; set; }
+        public string? face_id { get; set; }
 
         public ICollection<StudentSession> StudentSessions { get; set; } = new List<StudentSession>();
     }

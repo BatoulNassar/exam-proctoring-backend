@@ -86,10 +86,11 @@ namespace ExamProctoring.Infrastructure.Migrations
                 {
                     id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    user_name = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    user_name = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     email = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    phone_number = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    phone_number = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     full_name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    password_hash = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     created_at = table.Column<DateTime>(type: "datetime2", nullable: false),
                     created_by = table.Column<int>(type: "int", nullable: true),
                     updated_at = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -167,6 +168,36 @@ namespace ExamProctoring.Infrastructure.Migrations
                         principalTable: "User",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RefreshToken",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    user_id = table.Column<int>(type: "int", nullable: false),
+                    token = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    expires_at = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    revoked_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    replaced_by_token = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    created_at = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    created_by = table.Column<int>(type: "int", nullable: true),
+                    updated_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    updated_by = table.Column<int>(type: "int", nullable: true),
+                    is_deleted = table.Column<bool>(type: "bit", nullable: false),
+                    deleted_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    deleted_by = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RefreshToken", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_RefreshToken_User_user_id",
+                        column: x => x.user_id,
+                        principalTable: "User",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -710,6 +741,17 @@ namespace ExamProctoring.Infrastructure.Migrations
                 column: "authored_by_admin_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_RefreshToken_token",
+                table: "RefreshToken",
+                column: "token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshToken_user_id",
+                table: "RefreshToken",
+                column: "user_id");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Role_name",
                 table: "Role",
                 column: "name",
@@ -765,7 +807,8 @@ namespace ExamProctoring.Infrastructure.Migrations
                 name: "IX_User_user_name",
                 table: "User",
                 column: "user_name",
-                unique: true);
+                unique: true,
+                filter: "[user_name] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_User_Roles_role_id",
@@ -805,6 +848,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Permission_Role");
+
+            migrationBuilder.DropTable(
+                name: "RefreshToken");
 
             migrationBuilder.DropTable(
                 name: "StudentAnswer");
