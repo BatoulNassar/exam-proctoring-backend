@@ -12,7 +12,6 @@ using ExamProctoring.Application.Interfaces;
 using ExamProctoring.Infrastructure.Data;
 using ExamProctoring.Infrastructure.Persistence;
 using ExamProctoring.Infrastructure.Persistence.Repositories;
-using ExamProctoring.Infrastructure.Seeders;
 using ExamProctoring.Infrastructure.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -32,7 +31,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // «·≈⁄œ«œ« 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
-// ===== Repositories (Infrastructure) =====
+// ===== Repositories =====
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
@@ -40,13 +39,10 @@ builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IAlertRepository, AlertRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
-builder.Services.AddScoped<IExamSessionRepository, ExamSessionRepository>(); 
+builder.Services.AddScoped<IExamSessionRepository, ExamSessionRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
-builder.Services.AddScoped<IStudentService, StudentService>();
-builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>(); 
-builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 
 // ===== Infrastructure services =====
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
@@ -55,15 +51,11 @@ builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 // ===== Application services =====
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IAlertService, AlertService>();         
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();   
-builder.Services.AddScoped<IExamSessionService, ExamSessionService>(); 
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IExamSessionService, ExamSessionService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
-
-// builder.Services.AddScoped<IStudentService, StudentService>();
-// builder.Services.AddScoped<IQuestionBankService, QuestionBankService>();
+builder.Services.AddScoped<IStudentService, StudentService>();
 
 // Validation
 builder.Services.AddValidatorsFromAssembly(typeof(LoginRequestValidator).Assembly);
@@ -92,21 +84,14 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+
 app.UseSwagger();
 app.UseSwaggerUI();
-
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    await SeedData.InitializeAsync(services);
-}
-
-app.UseHttpsRedirection();
-
-
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
 app.Run();
