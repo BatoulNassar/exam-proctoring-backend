@@ -127,5 +127,48 @@ namespace ExamProctoring.Application.Features.Users.Services
                 Permissions = a.UserRoles?.SelectMany(ur => ur.Role.PermissionRoles).Select(pr => pr.Permission.name).Distinct().ToList() ?? new List<string>()
             });
         }
+
+        public async Task<(bool Success, string Message)> DeactivateAdminAsync(int adminId, int actorId)
+        {
+            if (adminId == actorId)
+                return (false, "Cannot deactivate your own account");
+
+            var admin = await _userRepository.GetByIdWithRolesAndPermissionsAsync(adminId);
+            if (admin == null)
+                return (false, "Admin not found");
+
+            var adminRole = admin.UserRoles?.FirstOrDefault(ur => ur.Role.name == "Admin");
+            if (adminRole == null)
+                return (false, "User is not an admin");
+
+            admin.is_active = false;
+            admin.updated_at = DateTime.UtcNow;
+            admin.updated_by = actorId;
+
+            await _userRepository.UpdateAsync(admin);
+            await _unitOfWork.SaveChangesAsync();
+
+            return (true, "Admin account deactivated successfully");
+        }
+
+        public async Task<(bool Success, string Message)> ReactivateAdminAsync(int adminId, int actorId)
+        {
+            var admin = await _userRepository.GetByIdWithRolesAndPermissionsAsync(adminId);
+            if (admin == null)
+                return (false, "Admin not found");
+
+            var adminRole = admin.UserRoles?.FirstOrDefault(ur => ur.Role.name == "Admin");
+            if (adminRole == null)
+                return (false, "User is not an admin");
+
+            admin.is_active = true;
+            admin.updated_at = DateTime.UtcNow;
+            admin.updated_by = actorId;
+
+            await _userRepository.UpdateAsync(admin);
+            await _unitOfWork.SaveChangesAsync();
+
+            return (true, "Admin account reactivated successfully");
+        }
     }
 }

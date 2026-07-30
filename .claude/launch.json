@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-server",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "exam-proctoring-app"],
+      "port": 5000
+    }
+  ]
+}

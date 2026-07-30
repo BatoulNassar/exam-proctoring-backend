@@ -280,6 +280,12 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
 
+                    b.Property<DateTime?>("active_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("archived_at")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("closed_at")
                         .HasColumnType("datetime2");
 
@@ -306,8 +312,19 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Property<int>("duration_minutes")
                         .HasColumnType("int");
 
+                    b.Property<int>("extended_by_minutes")
+                        .HasColumnType("int");
+
                     b.Property<int>("eye_gaze_threshold_sec")
                         .HasColumnType("int");
+
+                    b.Property<string>("face_alert_sensitivity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("grace_period_ended_at")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("grace_period_minutes")
                         .HasColumnType("int");
@@ -325,6 +342,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.Property<int>("question_bank_id")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("scheduled_at")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("start_time")
                         .HasColumnType("datetime2");
@@ -614,6 +634,54 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.ToTable("ProctorAction", (string)null);
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.ProctorSession", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<int>("exam_session_id")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("proctor_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("proctor_id");
+
+                    b.HasIndex("exam_session_id", "proctor_id")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProctorSession_Unique");
+
+                    b.ToTable("ProctorSession", (string)null);
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.Question", b =>
                 {
                     b.Property<int>("id")
@@ -624,8 +692,8 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.Property<string>("correct_answer")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
 
                     b.Property<DateTime>("created_at")
                         .HasColumnType("datetime2");
@@ -1108,6 +1176,9 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("is_active")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("is_deleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -1385,6 +1456,25 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("AlertEvent");
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.ProctorSession", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.ExamSession", "ExamSession")
+                        .WithMany("ProctorSessions")
+                        .HasForeignKey("exam_session_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ExamProctoring.Domain.Entities.User", "Proctor")
+                        .WithMany("ProctorSessions")
+                        .HasForeignKey("proctor_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ExamSession");
+
+                    b.Navigation("Proctor");
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.Question", b =>
                 {
                     b.HasOne("ExamProctoring.Domain.Entities.QuestionBank", "QuestionBank")
@@ -1505,6 +1595,8 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.Navigation("GradingExports");
 
+                    b.Navigation("ProctorSessions");
+
                     b.Navigation("StudentSessions");
                 });
 
@@ -1569,6 +1661,8 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("ExamSessions");
 
                     b.Navigation("ProctorActions");
+
+                    b.Navigation("ProctorSessions");
 
                     b.Navigation("QuestionBanks");
 

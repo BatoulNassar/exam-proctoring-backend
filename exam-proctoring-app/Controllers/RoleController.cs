@@ -23,6 +23,19 @@ namespace ExamProctoring.API.Controllers
             return Ok(ApiResponse<IEnumerable<RoleDto>>.Ok(result, "Roles with permissions retrieved successfully"));
         }
 
+        [HttpGet("{roleId}/permissions")]
+        public async Task<IActionResult> GetRolePermissions(int roleId)
+        {
+            try
+            {
+                var result = await _roleService.GetRolePermissionsAsync(roleId);
+                return Ok(ApiResponse<RoleDto>.Ok(result, "Role permissions retrieved successfully"));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(ApiResponse<object>.Fail(ex.Message, 404));
+            }
+        }
 
         [HttpPut("{roleId}/permissions")]
         public async Task<IActionResult> UpdatePermissions(int roleId, [FromBody] UpdateRolePermissionsRequest request)

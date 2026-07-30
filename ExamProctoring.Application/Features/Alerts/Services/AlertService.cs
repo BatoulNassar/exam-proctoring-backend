@@ -15,9 +15,7 @@ namespace ExamProctoring.Application.Features.Alerts.Services
             _alertRepository = alertRepository;
         }
 
-        /// <summary>
-        /// Retrieves and maps recent alerts to DTOs for the API layer.
-        /// </summary>
+
         public async Task<IEnumerable<AlertEventDto>> GetRecentAlertsAsync(int page, int pageSize)
         {
             var alerts = await _alertRepository.GetRecentPagedAsync(page, pageSize);

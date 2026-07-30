@@ -39,9 +39,37 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                 .SingleOrDefaultAsync(u => u.id == userId);
         }
 
+        public async Task<User?> GetByIdWithRolesAsync(int userId)
+        {
+            return await _context.Users
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .SingleOrDefaultAsync(u => u.id == userId);
+        }
+
+        public async Task<IEnumerable<User>> GetByRoleAsync(string roleName)
+        {
+            return await _context.Users
+                .Where(u => u.UserRoles.Any(ur => ur.Role.name == roleName))
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                .ToListAsync();
+        }
+
+        public async Task<User> GetByIdAsync(int userId)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.id == userId);
+        }
+
         public async Task AddAsync(User user)
         {
             await _context.Users.AddAsync(user);
+        }
+
+        public async Task UpdateAsync(User user)
+        {
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
         }
 
         public async Task<IEnumerable<User>> GetAdminsWithPermissionsPagedAsync(int page, int pageSize)
@@ -66,6 +94,12 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                 .ToListAsync();
         }
 
+        public async Task<int> CountAdminsAsync()
+        {
+            return await _context.Users
+                .CountAsync(u => u.UserRoles.Any(ur => ur.Role.name == "Admin"));
+        }
+
         public async Task<bool> EmailExistsAsync(string email)
         {
             return await _context.Users.AnyAsync(u => u.email == email);
@@ -73,7 +107,9 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
 
         public async Task DeleteAsync(User user)
         {
-            _context.Users.Remove(user);
+            user.is_deleted = true;
+            user.deleted_at = DateTime.UtcNow;
+            _context.Users.Update(user);
             await _context.SaveChangesAsync();
         }
     }

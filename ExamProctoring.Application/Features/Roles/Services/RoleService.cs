@@ -35,6 +35,21 @@ namespace ExamProctoring.Application.Features.Roles.Services
             });
         }
 
+        public async Task<RoleDto> GetRolePermissionsAsync(int roleId)
+        {
+            var role = await _roleRepository.GetByIdWithPermissionsAsync(roleId);
+
+            if (role == null)
+                throw new InvalidOperationException("Role not found");
+
+            return new RoleDto
+            {
+                Id = role.id,
+                Name = role.name,
+                Permissions = role.PermissionRoles.Select(pr => pr.Permission.name).ToList()
+            };
+        }
+
         public async Task UpdateRolePermissionsAsync(int roleId, List<int> permissionIds)
         {
             await _permissionRoleRepository.RemoveByRoleIdAsync(roleId);

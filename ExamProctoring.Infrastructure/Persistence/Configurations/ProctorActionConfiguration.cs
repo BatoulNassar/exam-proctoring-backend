@@ -16,7 +16,10 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.ToTable("ProctorAction");
             builder.HasKey(pa => pa.id);
 
-            builder.Property(pa => pa.action_type).IsRequired().HasMaxLength(50);
+            builder.Property(pa => pa.action_type)
+                   .HasConversion<string>()
+                   .IsRequired()
+                   .HasMaxLength(50);
             builder.Property(pa => pa.action_note).HasMaxLength(500);
 
             builder.HasOne(pa => pa.Admin)

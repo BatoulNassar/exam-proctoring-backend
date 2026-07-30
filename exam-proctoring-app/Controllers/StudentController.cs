@@ -28,5 +28,19 @@ namespace ExamProctoring.API.Controllers
 
             return Ok(ApiResponse<IEnumerable<StudentDto>>.Ok(result, "Students retrieved successfully") );
         }
+
+        [HttpPost("import-csv")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> ImportStudentsCsv([FromForm] IFormFile csvFile)
+        {
+            if (csvFile == null)
+                return BadRequest(ApiResponse<object>.Fail("CSV file is required", 400));
+
+            var response = await _studentService.ImportStudentsFromCsvAsync(csvFile.OpenReadStream());
+            return response.FailedImports > 0 && response.SuccessfulImports == 0
+                ? BadRequest(ApiResponse<ImportStudentsCsvResponse>.Fail("Import failed", 400))
+                : Ok(ApiResponse<ImportStudentsCsvResponse>.Ok(response,
+                    $"Imported: {response.SuccessfulImports} succeeded, {response.FailedImports} failed"));
+        }
     }
 }

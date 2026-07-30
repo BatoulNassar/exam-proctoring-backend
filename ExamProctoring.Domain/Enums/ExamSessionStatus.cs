@@ -10,9 +10,10 @@ namespace ExamProctoring.Domain.Enums
     {
         DRAFT=1,
         SCHEDULED=2,
-        ACTIVE=3,
-        GRACE=4,
-        CLOSED=5,
-        ARCHIVED=6,
+        LOCKED=3,
+        ACTIVE=4,
+        GRACE=5,
+        CLOSED=6,
+        ARCHIVED=7,
     }
 }

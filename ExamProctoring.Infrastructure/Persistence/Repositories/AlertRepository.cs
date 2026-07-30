@@ -27,5 +27,11 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             .Take(pageSize)
             .ToListAsync();
         }
+
+        public async Task<int> CountOpenAlertsAsync()
+        {
+            return await _context.AlertEvents
+                .CountAsync(a => !a.ProctorActions.Any());
+        }
     }
 }

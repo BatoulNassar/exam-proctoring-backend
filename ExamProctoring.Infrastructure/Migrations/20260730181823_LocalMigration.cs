@@ -91,6 +91,7 @@ namespace ExamProctoring.Infrastructure.Migrations
                     phone_number = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     full_name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     password_hash = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    is_active = table.Column<bool>(type: "bit", nullable: false),
                     created_at = table.Column<DateTime>(type: "datetime2", nullable: false),
                     created_by = table.Column<int>(type: "int", nullable: true),
                     updated_at = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -245,12 +246,18 @@ namespace ExamProctoring.Infrastructure.Migrations
                     start_time = table.Column<DateTime>(type: "datetime2", nullable: false),
                     duration_minutes = table.Column<int>(type: "int", nullable: false),
                     question_bank_id = table.Column<int>(type: "int", nullable: false),
+                    scheduled_at = table.Column<DateTime>(type: "datetime2", nullable: true),
                     locked_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    active_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    grace_period_ended_at = table.Column<DateTime>(type: "datetime2", nullable: true),
                     grace_period_minutes = table.Column<int>(type: "int", nullable: false),
+                    extended_by_minutes = table.Column<int>(type: "int", nullable: false),
                     login_window_minutes = table.Column<int>(type: "int", nullable: false),
                     eye_gaze_threshold_sec = table.Column<int>(type: "int", nullable: false),
+                    face_alert_sensitivity = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
                     created_by_admin_id = table.Column<int>(type: "int", nullable: false),
                     closed_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    archived_at = table.Column<DateTime>(type: "datetime2", nullable: true),
                     created_at = table.Column<DateTime>(type: "datetime2", nullable: false),
                     created_by = table.Column<int>(type: "int", nullable: true),
                     updated_at = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -290,7 +297,7 @@ namespace ExamProctoring.Infrastructure.Migrations
                     option_c = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     option_d = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     option_e = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    correct_answer = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    correct_answer = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
                     marks = table.Column<int>(type: "int", nullable: false),
                     created_at = table.Column<DateTime>(type: "datetime2", nullable: false),
                     created_by = table.Column<int>(type: "int", nullable: true),
@@ -371,6 +378,39 @@ namespace ExamProctoring.Infrastructure.Migrations
                         principalTable: "ExamSession",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProctorSession",
+                columns: table => new
+                {
+                    id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    exam_session_id = table.Column<int>(type: "int", nullable: false),
+                    proctor_id = table.Column<int>(type: "int", nullable: false),
+                    created_at = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    created_by = table.Column<int>(type: "int", nullable: true),
+                    updated_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    updated_by = table.Column<int>(type: "int", nullable: true),
+                    is_deleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    deleted_at = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    deleted_by = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProctorSession", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_ProctorSession_ExamSession_exam_session_id",
+                        column: x => x.exam_session_id,
+                        principalTable: "ExamSession",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ProctorSession_User_proctor_id",
+                        column: x => x.proctor_id,
+                        principalTable: "User",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -731,6 +771,17 @@ namespace ExamProctoring.Infrastructure.Migrations
                 column: "alert_event_id");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProctorSession_proctor_id",
+                table: "ProctorSession",
+                column: "proctor_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProctorSession_Unique",
+                table: "ProctorSession",
+                columns: new[] { "exam_session_id", "proctor_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Question_question_bank_id",
                 table: "Question",
                 column: "question_bank_id");
@@ -848,6 +899,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "Permission_Role");
+
+            migrationBuilder.DropTable(
+                name: "ProctorSession");
 
             migrationBuilder.DropTable(
                 name: "RefreshToken");

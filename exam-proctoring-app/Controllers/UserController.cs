@@ -3,7 +3,8 @@ using ExamProctoring.Application.Features.Users.DTOs;
 using ExamProctoring.Application.Features.Users.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ExamProctoring.Application.Features.Users.DTOs;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace ExamProctoring.API.Controllers
 {
@@ -17,6 +18,14 @@ namespace ExamProctoring.API.Controllers
         public UserController(IUserService userService)
         {
             _userService = userService;
+        }
+
+        private int? GetActorId()
+        {
+            var actorIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+            return int.TryParse(actorIdClaim, out var actorId) ? actorId : null;
         }
 
 
@@ -54,6 +63,44 @@ namespace ExamProctoring.API.Controllers
             {
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred while creating admin", 500));
             }
+        }
+
+        /// <summary>
+        /// Deactivate an admin account (disable login).
+        /// </summary>
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpPost("{adminId}/deactivate")]
+        public async Task<IActionResult> DeactivateAdmin(int adminId)
+        {
+            var actorId = GetActorId();
+            if (actorId == null)
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var (success, message) = await _userService.DeactivateAdminAsync(adminId, actorId.Value);
+
+            if (!success)
+                return BadRequest(ApiResponse<object>.Fail(message, 400));
+
+            return Ok(ApiResponse<object>.Ok(null, message));
+        }
+
+        /// <summary>
+        /// Reactivate a deactivated admin account (enable login).
+        /// </summary>
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpPost("{adminId}/reactivate")]
+        public async Task<IActionResult> ReactivateAdmin(int adminId)
+        {
+            var actorId = GetActorId();
+            if (actorId == null)
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var (success, message) = await _userService.ReactivateAdminAsync(adminId, actorId.Value);
+
+            if (!success)
+                return BadRequest(ApiResponse<object>.Fail(message, 400));
+
+            return Ok(ApiResponse<object>.Ok(null, message));
         }
     }
 }

@@ -1,8 +1,10 @@
-﻿using ExamProctoring.Domain.Entities;
+﻿using ExamProctoring.Domain.Common;
+using ExamProctoring.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -22,6 +24,7 @@ namespace ExamProctoring.Infrastructure.Data
         public DbSet<QuestionBank> QuestionBanks { get; set; }
         public DbSet<Question> Questions { get; set; }
         public DbSet<ExamSession> ExamSessions { get; set; }
+        public DbSet<ProctorSession> ProctorSessions { get; set; }
         public DbSet<StudentSession> StudentSessions { get; set; }
         public DbSet<StudentAnswer> StudentAnswers { get; set; }
         public DbSet<AutoScore> AutoScores { get; set; }
@@ -38,6 +41,20 @@ namespace ExamProctoring.Infrastructure.Data
         {
             modelBuilder.ApplyConfigurationsFromAssembly(
                 typeof(AppDbContext).Assembly);
+
+            // Global soft-delete filter: hide is_deleted rows from every query
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+                {
+                    var parameter = Expression.Parameter(entityType.ClrType, "e");
+                    var body = Expression.Equal(
+                        Expression.Property(parameter, nameof(BaseEntity.is_deleted)),
+                        Expression.Constant(false));
+                    modelBuilder.Entity(entityType.ClrType)
+                        .HasQueryFilter(Expression.Lambda(body, parameter));
+                }
+            }
         }
     }
 }

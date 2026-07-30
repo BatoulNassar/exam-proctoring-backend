@@ -22,7 +22,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.Property(q => q.option_c).HasMaxLength(1000);
             builder.Property(q => q.option_d).HasMaxLength(1000);
             builder.Property(q => q.option_e).HasMaxLength(1000);
-            builder.Property(q => q.correct_answer).IsRequired().HasMaxLength(10);
+            builder.Property(q => q.correct_answer).IsRequired().HasMaxLength(255);
 
 
             builder.HasOne(q => q.QuestionBank)

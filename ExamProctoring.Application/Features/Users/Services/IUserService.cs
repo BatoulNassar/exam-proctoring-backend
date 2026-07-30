@@ -13,6 +13,8 @@ namespace ExamProctoring.Application.Features.Users.Services
         Task<CreateAdminResponseDto> CreateAdminAsync(CreateAdminRequestDto request);
         Task DeleteAdminAsync(int adminId);
         Task<IEnumerable<UserResponseDto>> GetAllAdminsWithPermissionsAsync(int page, int pageSize);
+        Task<(bool Success, string Message)> DeactivateAdminAsync(int adminId, int actorId);
+        Task<(bool Success, string Message)> ReactivateAdminAsync(int adminId, int actorId);
     }
 }
 

@@ -20,6 +20,10 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.Property(es => es.title).IsRequired().HasMaxLength(150);
             builder.Property(es => es.course_tag).IsRequired().HasMaxLength(50);
             builder.Property(es => es.status).IsRequired().HasConversion<string>();
+            builder.Property(es => es.face_alert_sensitivity)
+                   .IsRequired()
+                   .HasConversion<string>()
+                   .HasMaxLength(10);
 
             builder.HasOne(es => es.CreatedByAdmin)
                    .WithMany(u => u.ExamSessions)

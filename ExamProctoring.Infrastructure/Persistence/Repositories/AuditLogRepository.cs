@@ -25,5 +25,19 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             .Take(pageSize)
             .ToListAsync();
         }
+
+        public async Task<IEnumerable<AuditLog>> GetByExamSessionIdAsync(int sessionId)
+        {
+            return await _context.AuditLogs
+            .Where(a => a.exam_session_id == sessionId)
+            .OrderBy(a => a.occurred_at)
+            .ToListAsync();
+        }
+
+        public async Task AddAsync(AuditLog auditLog)
+        {
+            await _context.AuditLogs.AddAsync(auditLog);
+            await _context.SaveChangesAsync();
+        }
     }
 }
