@@ -49,6 +49,22 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(s => s.id == studentId);
         }
 
+        public async Task<Student?> GetByEmailAsync(string email)
+        {
+            var normalizedEmail = email.Trim().ToLower();
+
+            return await _context.Students
+                .FirstOrDefaultAsync(s => s.email.ToLower() == normalizedEmail);
+        }
+
+        public async Task<Student?> GetByUserNameAsync(string userName)
+        {
+            var normalizedUserName = userName.Trim().ToLower();
+
+            return await _context.Students
+                .FirstOrDefaultAsync(s => s.user_name.ToLower() == normalizedUserName);
+        }
+
         public async Task AddAsync(Student student)
         {
             await _context.Students.AddAsync(student);
@@ -59,6 +75,40 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         {
             _context.Students.Update(student);
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<(int FailedAttempts, DateTime? LockoutEndUtc)> RegisterFailedLoginAsync(
+            int studentId, int maxAttempts, DateTime lockoutEndUtc, DateTime nowUtc)
+        {
+            // One server-side UPDATE: the increment and the lockout decision are evaluated by SQL Server
+            // against the current row, so two concurrent failures cannot read-then-overwrite the same count.
+            await _context.Students
+                .Where(s => s.id == studentId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(s => s.failed_login_attempts, s => s.failed_login_attempts + 1)
+                    .SetProperty(s => s.lockout_end_utc,
+                        s => s.failed_login_attempts + 1 >= maxAttempts ? lockoutEndUtc : s.lockout_end_utc)
+                    .SetProperty(s => s.updated_at, nowUtc));
+
+            var state = await _context.Students
+                .AsNoTracking()
+                .Where(s => s.id == studentId)
+                .Select(s => new { s.failed_login_attempts, s.lockout_end_utc })
+                .FirstOrDefaultAsync();
+
+            return state == null
+                ? (0, null)
+                : (state.failed_login_attempts, state.lockout_end_utc);
+        }
+
+        public async Task ResetLoginStateAsync(int studentId, DateTime nowUtc)
+        {
+            await _context.Students
+                .Where(s => s.id == studentId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(s => s.failed_login_attempts, 0)
+                    .SetProperty(s => s.lockout_end_utc, (DateTime?)null)
+                    .SetProperty(s => s.updated_at, nowUtc));
         }
     }
 }

@@ -4,6 +4,7 @@ using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ExamProctoring.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260803104257_AddStudentAuthenticationState")]
+    partial class AddStudentAuthenticationState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1084,58 +1087,6 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("StudentAnswer", (string)null);
-                });
-
-            modelBuilder.Entity("ExamProctoring.Domain.Entities.StudentLoginAttempt", b =>
-                {
-                    b.Property<int>("id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
-
-                    b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("created_by")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("deleted_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("deleted_by")
-                        .HasColumnType("int");
-
-                    b.Property<int>("failed_attempts")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("identifier_hash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<bool>("is_deleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
-                    b.Property<DateTime?>("lockout_end_utc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("updated_at")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("updated_by")
-                        .HasColumnType("int");
-
-                    b.HasKey("id");
-
-                    b.HasIndex("identifier_hash")
-                        .IsUnique();
-
-                    b.ToTable("StudentLoginAttempt", (string)null);
                 });
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.StudentSession", b =>

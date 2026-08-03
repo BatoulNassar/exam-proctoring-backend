@@ -8,7 +8,7 @@ namespace ExamProctoring.API.Controllers
 {
     [ApiController]
     [Route("api/students")]
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.DashboardOnly)]
     public class StudentsController : ControllerBase
     {
 
@@ -31,7 +31,8 @@ namespace ExamProctoring.API.Controllers
 
         [HttpPost("import-csv")]
         [Authorize(Roles = "SuperAdmin,Admin")]
-        public async Task<IActionResult> ImportStudentsCsv([FromForm] IFormFile csvFile)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> ImportStudentsCsv(IFormFile csvFile)
         {
             if (csvFile == null)
                 return BadRequest(ApiResponse<object>.Fail("CSV file is required", 400));

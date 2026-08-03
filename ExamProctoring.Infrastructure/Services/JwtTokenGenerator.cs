@@ -47,6 +47,34 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    public (string AccessToken, DateTime ExpiresAtUtc) GenerateStudentAccessToken(Student student, string deviceId)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, student.id.ToString()),
+            new Claim("student_id", student.id.ToString()),
+            new Claim("token_type", "student"),
+            new Claim(JwtRegisteredClaimNames.Email, student.email),
+            new Claim("username", student.user_name),
+            new Claim("device_id", deviceId),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.StudentAccessTokenExpirationMinutes),
+            signingCredentials: credentials
+        );
+
+        // ValidTo is the token's own 'exp' claim, so the reported expiry cannot drift from the token.
+        return (new JwtSecurityTokenHandler().WriteToken(token), token.ValidTo);
+    }
+
     public string GenerateRefreshToken()
     {
         var randomBytes = new byte[64];

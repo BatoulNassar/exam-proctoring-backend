@@ -32,8 +32,9 @@ namespace exam_proctoring_app.Controllers
         /// </summary>
         [HttpPost("upload")]
         [Authorize(Roles = "SuperAdmin,Admin")]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadQuestionBank([FromForm] string title, [FromForm] string courseCode,
-            [FromForm] string version, [FromForm] IFormFile csvFile, [FromForm] bool randomization, [FromForm] bool optionShuffle)
+            [FromForm] string version, IFormFile csvFile, [FromForm] bool randomization, [FromForm] bool optionShuffle)
         {
             var actorId = GetActorId();
             if (actorId == null)

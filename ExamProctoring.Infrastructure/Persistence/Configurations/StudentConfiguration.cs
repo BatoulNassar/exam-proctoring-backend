@@ -26,6 +26,12 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.Property(s=>s.university_number).IsRequired().HasMaxLength(20);
             builder.Property(s=>s.face_id).IsRequired().HasMaxLength(500);
 
+            // Student desktop authentication state. Defaults keep existing and newly
+            // imported students active with a clean counter.
+            builder.Property(s => s.is_active).IsRequired().HasDefaultValue(true);
+            builder.Property(s => s.failed_login_attempts).IsRequired().HasDefaultValue(0);
+            builder.Property(s => s.lockout_end_utc).IsRequired(false);
+
 
             builder.HasIndex(s => s.user_name).IsUnique();
             builder.HasIndex(s => s.email).IsUnique();

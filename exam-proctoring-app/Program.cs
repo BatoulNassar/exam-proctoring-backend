@@ -1,3 +1,4 @@
+using ExamProctoring.Application.Common;
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Common.Settings;
 using ExamProctoring.Application.Features.Alerts.Services;
@@ -9,18 +10,18 @@ using ExamProctoring.Application.Features.ExamSessions.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
 using ExamProctoring.Application.Features.Roles.Services;
 using ExamProctoring.Application.Features.Students.Services;
+using ExamProctoring.Application.Features.StudentAuth.Services;
 using ExamProctoring.Application.Features.Users.Services;
 using ExamProctoring.Application.Interfaces;
+using ExamProctoring.API.Common;
 using ExamProctoring.API.Services;
 using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using ExamProctoring.Infrastructure.Data;
 using ExamProctoring.Infrastructure.Persistence;
 using ExamProctoring.Infrastructure.Persistence.Repositories;
 using ExamProctoring.Infrastructure.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.IdentityModel.Tokens.Jwt;
@@ -66,7 +67,25 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ServerConnection")));
 
 // ���������
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddOptions<JwtSettings>()
+    .Bind(builder.Configuration.GetSection("Jwt"))
+    .Validate(s => s.StudentAccessTokenExpirationMinutes > 0,
+        "Jwt:StudentAccessTokenExpirationMinutes must be a positive number of minutes.")
+    .ValidateOnStart();
+
+builder.Services.AddOptions<StudentAuthenticationSettings>()
+    .Bind(builder.Configuration.GetSection("StudentAuthentication"))
+    .Validate(s => s.MaxFailedLoginAttempts > 0,
+        "StudentAuthentication:MaxFailedLoginAttempts must be greater than 0.")
+    .Validate(s => s.LockoutDurationMinutes > 0,
+        "StudentAuthentication:LockoutDurationMinutes must be greater than 0.")
+    .ValidateOnStart();
+
+builder.Services.AddOptions<StudentApplicationSettings>()
+    .Bind(builder.Configuration.GetSection("StudentApplication"))
+    .Validate(s => AppVersion.TryParse(s.MinimumSupportedVersion, out _),
+        "StudentApplication:MinimumSupportedVersion is required and must look like 1.0.0 or 1.0.0+1.")
+    .ValidateOnStart();
 
 // ===== Repositories =====
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -80,6 +99,7 @@ builder.Services.AddScoped<IExamSessionRepository, ExamSessionRepository>();
 builder.Services.AddScoped<IProctorSessionRepository, ProctorSessionRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
+builder.Services.AddScoped<IStudentLoginAttemptRepository, StudentLoginAttemptRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
 
@@ -99,6 +119,9 @@ builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IQuestionBankService, QuestionBankService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+
+// ===== Student desktop (Flutter Windows) services =====
+builder.Services.AddScoped<IStudentAuthService, StudentAuthService>();
 
 // Background services
 builder.Services.AddHostedService<ExamSessionStateCheckBackgroundService>();
@@ -130,12 +153,6 @@ builder.Services.AddAuthentication(options =>
 
     options.Events = new JwtBearerEvents
     {
-        OnMessageReceived = context =>
-        {
-            Console.WriteLine($"Authorization Header: {context.Request.Headers.Authorization}");
-            return Task.CompletedTask;
-        },
-
         OnAuthenticationFailed = context =>
         {
             Console.WriteLine("AUTH FAILED");
@@ -157,7 +174,15 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Dashboard tokens carry no token_type claim, so their behaviour is unchanged.
+    // Only student desktop tokens (token_type = student) are rejected.
+    options.AddPolicy(AuthorizationPolicies.DashboardOnly, policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireAssertion(context =>
+                  !context.User.HasClaim(c => c.Type == "token_type" && c.Value == "student")));
+});
 
 var app = builder.Build();
 

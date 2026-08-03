@@ -7,11 +7,15 @@ namespace ExamProctoring.Application.Features.Students.Services
 {
     public class StudentService : IStudentService
     {
-        private readonly IStudentRepository _studentRepository;
+        private const string DefaultImportPassword = "DefaultPassword123!";
 
-        public StudentService(IStudentRepository studentRepository)
+        private readonly IStudentRepository _studentRepository;
+        private readonly IPasswordHasher _passwordHasher;
+
+        public StudentService(IStudentRepository studentRepository, IPasswordHasher passwordHasher)
         {
             _studentRepository = studentRepository;
+            _passwordHasher = passwordHasher;
         }
 
 
@@ -189,7 +193,8 @@ namespace ExamProctoring.Application.Features.Students.Services
                         email = generatedEmail,
                         phone_number = phoneNumber,
                         user_name = universityNumber,
-                        password = "DefaultPassword123!",
+                        // Stored as a BCrypt hash; the student still signs in with the plaintext default.
+                        password = _passwordHasher.Hash(DefaultImportPassword),
                         face_id = faceId ?? string.Empty,
                         created_at = DateTime.UtcNow
                     };

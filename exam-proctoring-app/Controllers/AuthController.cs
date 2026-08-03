@@ -58,7 +58,7 @@ namespace ExamProctoring.API.Controllers
         }
 
 
-        [Authorize]
+        [Authorize(Policy = AuthorizationPolicies.DashboardOnly)]
         [HttpPost("logout")]
         public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto request)
         {
@@ -74,7 +74,7 @@ namespace ExamProctoring.API.Controllers
         }
 
 
-        [Authorize]
+        [Authorize(Policy = AuthorizationPolicies.DashboardOnly)]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request)
         {

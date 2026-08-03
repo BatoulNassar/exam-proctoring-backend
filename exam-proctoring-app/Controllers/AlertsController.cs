@@ -8,7 +8,7 @@ namespace ExamProctoring.API.Controllers
 {
     [Route("api/alerts")]
     [ApiController]
-    [Authorize] 
+    [Authorize(Policy = AuthorizationPolicies.DashboardOnly)]
     public class AlertsController : ControllerBase
     {
         private readonly IAlertService _alertService;

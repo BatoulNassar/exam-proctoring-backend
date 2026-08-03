@@ -19,6 +19,10 @@ namespace ExamProctoring.Domain.Entities
         public string university_number { get; set; }
         public string face_id { get; set; }
 
+        public bool is_active { get; set; } = true;
+        public int failed_login_attempts { get; set; }
+        public DateTime? lockout_end_utc { get; set; }
+
         public ICollection<StudentSession> StudentSessions { get; set; } = new List<StudentSession>();
     }
 }
