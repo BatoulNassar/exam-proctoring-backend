@@ -16,13 +16,16 @@ namespace ExamProctoring.API.Controllers
     {
         private readonly IStudentAuthService _studentAuthService;
         private readonly IValidator<StudentLoginRequest> _loginValidator;
+        private readonly ILogger<StudentAuthController> _logger;
 
         public StudentAuthController(
             IStudentAuthService studentAuthService,
-            IValidator<StudentLoginRequest> loginValidator)
+            IValidator<StudentLoginRequest> loginValidator,
+            ILogger<StudentAuthController> logger)
         {
             _studentAuthService = studentAuthService;
             _loginValidator = loginValidator;
+            _logger = logger;
         }
 
         [AllowAnonymous]
@@ -82,8 +85,9 @@ namespace ExamProctoring.API.Controllers
                             new { remainingAttempts = result.RemainingAttempts }));
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Unhandled exception during student login.");
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred during login", 500));
             }
         }

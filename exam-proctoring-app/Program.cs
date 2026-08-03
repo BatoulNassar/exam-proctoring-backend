@@ -15,6 +15,7 @@ using ExamProctoring.Application.Features.Users.Services;
 using ExamProctoring.Application.Interfaces;
 using ExamProctoring.API.Common;
 using ExamProctoring.API.Extensions;
+using ExamProctoring.API.Middleware;
 using ExamProctoring.API.Services;
 using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -189,6 +190,9 @@ var app = builder.Build();
 
 // Development applies migrations and seeds demo data; other environments touch no database at startup.
 await app.InitializeDatabaseAsync();
+
+// First in the pipeline: logs any unhandled request exception in full, returns a generic 500.
+app.UseMiddleware<ExceptionLoggingMiddleware>();
 
 app.UseSwagger();
 app.UseSwaggerUI();

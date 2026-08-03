@@ -14,10 +14,12 @@ namespace ExamProctoring.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, ILogger<AuthController> logger)
         {
             _authService = authService;
+            _logger = logger;
         }
 
         [HttpPost("login")]
@@ -34,6 +36,7 @@ namespace ExamProctoring.API.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unhandled exception during dashboard login.");
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred during login", 500));
             }
         }
@@ -53,6 +56,7 @@ namespace ExamProctoring.API.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unhandled exception during token refresh.");
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred while refreshing token", 500));
             }
         }
@@ -69,6 +73,7 @@ namespace ExamProctoring.API.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unhandled exception during logout.");
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred during logout", 500));
             }
         }
@@ -99,6 +104,7 @@ namespace ExamProctoring.API.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unhandled exception while changing password.");
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred while changing password", 500));
             }
         }

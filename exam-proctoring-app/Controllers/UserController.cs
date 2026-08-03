@@ -14,10 +14,12 @@ namespace ExamProctoring.API.Controllers
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly ILogger<UserController> _logger;
 
-        public UserController(IUserService userService)
+        public UserController(IUserService userService, ILogger<UserController> logger)
         {
             _userService = userService;
+            _logger = logger;
         }
 
         private int? GetActorId()
@@ -61,6 +63,7 @@ namespace ExamProctoring.API.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unhandled exception while creating admin.");
                 return StatusCode(500, ApiResponse<object>.Fail("An error occurred while creating admin", 500));
             }
         }

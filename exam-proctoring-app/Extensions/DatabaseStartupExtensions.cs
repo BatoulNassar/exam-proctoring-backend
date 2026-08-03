@@ -1,5 +1,6 @@
 using ExamProctoring.Infrastructure.Data;
 using ExamProctoring.Infrastructure.Seeders;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace ExamProctoring.API.Extensions
@@ -10,6 +11,43 @@ namespace ExamProctoring.API.Extensions
         /// (roles, permissions, super admin) once outside Development. Demo data is never included.
         private const string RunBootstrapSeedKey = "Database:RunBootstrapSeedOnStartup";
 
+        /// Reports which server, database and login the deployed instance will actually use, so a wrong
+        /// configuration source can be spotted from the log. The password is never read or written.
+        private static void LogEffectiveConnectionTarget(WebApplication app, ILogger logger)
+        {
+            const string connectionKey = "ServerConnection";
+            var connectionString = app.Configuration.GetConnectionString(connectionKey);
+
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                logger.LogError(
+                    "Environment {Environment}: connection string '{ConnectionKey}' is missing or empty.",
+                    app.Environment.EnvironmentName, connectionKey);
+                return;
+            }
+
+            try
+            {
+                var csb = new SqlConnectionStringBuilder(connectionString);
+
+                logger.LogInformation(
+                    "Environment {Environment}: using connection key '{ConnectionKey}' -> server {DataSource}, database {Database}, login {UserId}, integrated security {IntegratedSecurity}, connect timeout {ConnectTimeout}s.",
+                    app.Environment.EnvironmentName,
+                    connectionKey,
+                    csb.DataSource,
+                    csb.InitialCatalog,
+                    string.IsNullOrEmpty(csb.UserID) ? "(none)" : csb.UserID,
+                    csb.IntegratedSecurity,
+                    csb.ConnectTimeout);
+            }
+            catch (ArgumentException ex)
+            {
+                logger.LogError(
+                    "Environment {Environment}: connection string '{ConnectionKey}' could not be parsed: {Reason}",
+                    app.Environment.EnvironmentName, connectionKey, ex.Message);
+            }
+        }
+
         /// Development applies migrations and seeds development data.
         /// Outside Development the application performs no schema change and no database access at all
         /// during startup, so a database that is unreachable or has a mismatched migration history can
@@ -19,6 +57,8 @@ namespace ExamProctoring.API.Extensions
             var logger = app.Services
                 .GetRequiredService<ILoggerFactory>()
                 .CreateLogger("Startup.Database");
+
+            LogEffectiveConnectionTarget(app, logger);
 
             using var scope = app.Services.CreateScope();
             var services = scope.ServiceProvider;
