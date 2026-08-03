@@ -14,6 +14,7 @@ using ExamProctoring.Application.Features.StudentAuth.Services;
 using ExamProctoring.Application.Features.Users.Services;
 using ExamProctoring.Application.Interfaces;
 using ExamProctoring.API.Common;
+using ExamProctoring.API.Extensions;
 using ExamProctoring.API.Services;
 using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -186,15 +187,8 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// Apply migrations before seeding
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
-
-// Seed initial data (super admin + demo data)
-await ExamProctoring.Infrastructure.Seeders.SeedData.InitializeAsync(app.Services);
+// Development applies migrations and seeds demo data; other environments touch no database at startup.
+await app.InitializeDatabaseAsync();
 
 app.UseSwagger();
 app.UseSwaggerUI();
