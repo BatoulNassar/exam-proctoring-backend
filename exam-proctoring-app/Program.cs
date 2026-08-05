@@ -6,6 +6,7 @@ using ExamProctoring.Application.Features.AuditLogs.Services;
 using ExamProctoring.Application.Features.Auth.Services;
 using ExamProctoring.Application.Features.Auth.Validators;
 using ExamProctoring.Application.Features.Dashboard.Services;
+using ExamProctoring.Application.Features.Eligibility.Services;
 using ExamProctoring.Application.Features.ExamSessions.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
 using ExamProctoring.Application.Features.Roles.Services;
@@ -102,6 +103,7 @@ builder.Services.AddScoped<IProctorSessionRepository, ProctorSessionRepository>(
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 builder.Services.AddScoped<IStudentLoginAttemptRepository, StudentLoginAttemptRepository>();
+builder.Services.AddScoped<IStudentSessionRepository, StudentSessionRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
 
@@ -124,6 +126,7 @@ builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // ===== Student desktop (Flutter Windows) services =====
 builder.Services.AddScoped<IStudentAuthService, StudentAuthService>();
+builder.Services.AddScoped<IEligibilityService, EligibilityService>();
 
 // Background services
 builder.Services.AddHostedService<ExamSessionStateCheckBackgroundService>();
@@ -184,6 +187,15 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser()
               .RequireAssertion(context =>
                   !context.User.HasClaim(c => c.Type == "token_type" && c.Value == "student")));
+
+    // Student desktop tokens only: dashboard tokens and student tokens whose student_id
+    // claim is missing, malformed, zero or negative are rejected.
+    options.AddPolicy(AuthorizationPolicies.StudentOnly, policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireClaim("token_type", "student")
+              .RequireAssertion(context =>
+                  int.TryParse(context.User.FindFirst("student_id")?.Value, out var studentId)
+                  && studentId > 0));
 });
 
 var app = builder.Build();

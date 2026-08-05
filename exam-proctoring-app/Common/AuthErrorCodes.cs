@@ -9,5 +9,6 @@ namespace ExamProctoring.API.Common
         public const string AccountInactive = "ACCOUNT_INACTIVE";
         public const string ValidationFailed = "VALIDATION_FAILED";
         public const string AppVersionUnsupported = "APP_VERSION_UNSUPPORTED";
+        public const string MultipleActiveSessions = "MULTIPLE_ACTIVE_SESSIONS";
     }
 }
