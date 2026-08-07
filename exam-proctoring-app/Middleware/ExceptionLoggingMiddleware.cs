@@ -25,6 +25,25 @@ namespace ExamProctoring.API.Middleware
             {
                 await _next(context);
             }
+            catch (BadHttpRequestException ex)
+            {
+                // Kestrel raises this for malformed or oversized request bodies and it carries the
+                // correct client-error status (413 when an action's size limit is exceeded).
+                // Reporting it as 500 would blame the server for a client problem.
+                _logger.LogWarning(
+                    "Rejected request on {RequestMethod} {RequestPath}: {Reason} (status {StatusCode}).",
+                    context.Request.Method, context.Request.Path.Value, ex.Message, ex.StatusCode);
+
+                if (context.Response.HasStarted)
+                    throw;
+
+                context.Response.Clear();
+                context.Response.StatusCode = ex.StatusCode;
+                context.Response.ContentType = "application/json";
+
+                var badRequestBody = ApiResponse<object>.Fail("The request could not be processed.", ex.StatusCode);
+                await context.Response.WriteAsync(JsonSerializer.Serialize(badRequestBody, SerializerOptions));
+            }
             catch (Exception ex)
             {
                 // Structured detail for the server log only: type, message, request, inner chain.

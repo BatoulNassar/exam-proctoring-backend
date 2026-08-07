@@ -9,6 +9,7 @@ using ExamProctoring.Application.Features.AuditLogs.Services;
 using ExamProctoring.Application.Features.Auth.Services;
 using ExamProctoring.Application.Features.Auth.Validators;
 using ExamProctoring.Application.Features.Dashboard.Services;
+using ExamProctoring.Application.Features.DeviceChecks.Services;
 using ExamProctoring.Application.Features.Eligibility.Services;
 using ExamProctoring.Application.Features.ExamSessions.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
@@ -110,6 +111,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 builder.Services.AddScoped<IStudentLoginAttemptRepository, StudentLoginAttemptRepository>();
 builder.Services.AddScoped<IStudentSessionRepository, StudentSessionRepository>();
+builder.Services.AddScoped<IDeviceCheckRepository, DeviceCheckRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
 builder.Services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
@@ -142,6 +144,7 @@ builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 // ===== Student desktop (Flutter Windows) services =====
 builder.Services.AddScoped<IStudentAuthService, StudentAuthService>();
 builder.Services.AddScoped<IEligibilityService, EligibilityService>();
+builder.Services.AddScoped<IDeviceCheckService, DeviceCheckService>();
 
 // Background services
 builder.Services.AddScoped<IQuestionBankStateTransitionService, QuestionBankStateTransitionService>();

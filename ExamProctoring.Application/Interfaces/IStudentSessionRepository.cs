@@ -12,6 +12,12 @@ namespace ExamProctoring.Application.Common.Interfaces
         /// student desktop client.
         Task<List<StudentAssignmentView>> GetVisibleAssignmentsAsync(int studentId);
 
+        /// The student's own assignment to one exam session, using the same visibility
+        /// rules as GetVisibleAssignmentsAsync: soft-deleted rows excluded and DRAFT
+        /// sessions hidden. Null when the session does not exist, is not assigned to
+        /// this student, is deleted or is still DRAFT.
+        Task<StudentAssignmentView?> GetVisibleAssignmentAsync(int studentId, int examSessionId);
+
         Task<StudentSession?> GetByIdAsync(int studentSessionId);
 
         /// Marks the entity modified. The caller commits through the unit of work.

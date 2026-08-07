@@ -38,6 +38,8 @@ namespace ExamProctoring.Infrastructure.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<SystemSettings> SystemSettings { get; set; }
         public DbSet<StudentLoginAttempt> StudentLoginAttempts { get; set; }
+        public DbSet<DeviceCheck> DeviceChecks { get; set; }
+        public DbSet<DeviceCheckRequirement> DeviceCheckRequirements { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

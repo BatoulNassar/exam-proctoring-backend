@@ -5,6 +5,7 @@ using ExamProctoring.Domain.Enums;
 using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace ExamProctoring.Infrastructure.Persistence.Repositories
@@ -49,12 +50,25 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             await _context.AlertEvents.AddAsync(alert);
         }
 
+        public async Task<StudentAssignmentView?> GetVisibleAssignmentAsync(int studentId, int examSessionId)
+        {
+            // Same visibility definition as GetVisibleAssignmentsAsync, narrowed to one session.
+            return await VisibleAssignments(studentId)
+                .FirstOrDefaultAsync(a => a.ExamSessionId == examSessionId);
+        }
+
         public async Task<List<StudentAssignmentView>> GetVisibleAssignmentsAsync(int studentId)
         {
-            // The global soft-delete filter removes deleted StudentSession and ExamSession rows,
-            // including through the navigation used below. DRAFT sessions are excluded here because
-            // a student is enrolled while the session is still unpublished.
-            return await _context.StudentSessions
+            return await VisibleAssignments(studentId).ToListAsync();
+        }
+
+        /// Single definition of a "visible assignment", shared by every caller.
+        /// The global soft-delete filter removes deleted StudentSession and ExamSession rows,
+        /// including through the navigation used below. DRAFT sessions are excluded here because
+        /// a student is enrolled while the session is still unpublished.
+        private IQueryable<StudentAssignmentView> VisibleAssignments(int studentId)
+        {
+            return _context.StudentSessions
                 .AsNoTracking()
                 .Where(ss => ss.student_id == studentId
                              && ss.ExamSession.status != ExamSessionStatus.DRAFT)
@@ -72,8 +86,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                     DurationMinutes = ss.ExamSession.duration_minutes,
                     ExtendedByMinutes = ss.ExamSession.extended_by_minutes,
                     LoginWindowMinutes = ss.ExamSession.login_window_minutes,
-                })
-                .ToListAsync();
+                });
         }
     }
 }
