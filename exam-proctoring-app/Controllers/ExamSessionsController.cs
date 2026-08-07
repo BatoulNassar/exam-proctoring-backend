@@ -1,4 +1,5 @@
 using ExamProctoring.API.Common;
+using ExamProctoring.Application.Common.DTOs;
 using ExamProctoring.Application.Features.ExamSessions.DTOs;
 using ExamProctoring.Application.Features.ExamSessions.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -36,6 +37,18 @@ IExamSessionStateTransitionService transitionService)
         }
 
         /// <summary>
+        /// A SuperAdmin sees every session; a plain Admin only sees the ones they
+        /// created. Read from the token, so a request cannot widen it.
+        /// </summary>
+        private int? GetAdminScopeId() => IsSuperAdmin() ? null : GetActorId();
+
+        /// <summary>
+        /// True when the caller is an Admin whose identity claim is unreadable.
+        /// Serving unscoped data in that case would expose other admins' sessions.
+        /// </summary>
+        private bool HasUnresolvableScope() => !IsSuperAdmin() && GetActorId() == null;
+
+        /// <summary>
         /// Creates a new exam session as a draft, optionally enrolling students from a roster CSV.
         /// </summary>
         [Authorize(Roles = "SuperAdmin,Admin")]
@@ -67,8 +80,11 @@ IExamSessionStateTransitionService transitionService)
         [Authorize(Roles = "SuperAdmin,Admin")]
         public async Task<IActionResult> GetAllSessionsPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 4)
         {
-            var sessions = await _examSessionService.GetAllSessionsAsync(page, pageSize);
-            return Ok(ApiResponse<IEnumerable<ExamSessionDto>>.Ok(sessions, "The sessions were fetched successfully"));
+            if (HasUnresolvableScope())
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var sessions = await _examSessionService.GetAllSessionsAsync(page, pageSize, GetAdminScopeId());
+            return Ok(ApiResponse<PagedResult<ExamSessionDto>>.Ok(sessions, $"Retrieved {sessions.TotalCount} sessions"));
         }
 
         /// <summary>
@@ -78,7 +94,10 @@ IExamSessionStateTransitionService transitionService)
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetSessionDetails(int id)
         {
-            var session = await _examSessionService.GetSessionDetailsAsync(id);
+            if (HasUnresolvableScope())
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var session = await _examSessionService.GetSessionDetailsAsync(id, GetAdminScopeId());
 
             if (session == null)
                 return NotFound(ApiResponse<ExamSessionDetailsDto>.Fail("Exam session not found", 404));

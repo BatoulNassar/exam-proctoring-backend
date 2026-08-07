@@ -1,6 +1,8 @@
-﻿using ExamProctoring.Application.Common.Interfaces;
+using ExamProctoring.Application.Common.DTOs;
+using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.Students.DTOs;
 using ExamProctoring.Domain.Entities;
+using System.IO.Compression;
 using System.Text;
 
 namespace ExamProctoring.Application.Features.Students.Services
@@ -11,20 +13,24 @@ namespace ExamProctoring.Application.Features.Students.Services
 
         private readonly IStudentRepository _studentRepository;
         private readonly IPasswordHasher _passwordHasher;
+        private readonly ICloudinaryService _cloudinaryService;
 
-        public StudentService(IStudentRepository studentRepository, IPasswordHasher passwordHasher)
+        public StudentService(
+            IStudentRepository studentRepository,
+            IPasswordHasher passwordHasher,
+            ICloudinaryService cloudinaryService)
         {
             _studentRepository = studentRepository;
             _passwordHasher = passwordHasher;
+            _cloudinaryService = cloudinaryService;
         }
 
-
-        public async Task<IEnumerable<StudentDto>> GetAllStudentsAsync()
+        public async Task<PagedResult<StudentDto>> GetAllStudentsAsync(int page, int pageSize)
         {
-            var students = await _studentRepository.GetAllAsync();
+            var students = await _studentRepository.GetPagedAsync(page, pageSize);
+            var totalCount = await _studentRepository.CountAsync();
 
-
-            return students.Select(s => new StudentDto
+            var items = students.Select(s => new StudentDto
             {
                 Id = s.id,
                 UserName = s.user_name,
@@ -34,181 +40,182 @@ namespace ExamProctoring.Application.Features.Students.Services
                 MiddleName = s.middle_name,
                 LastName = s.last_name,
                 UniversityNumber = s.university_number
-            });
+            }).ToList();
+
+            return new PagedResult<StudentDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
         }
 
-        public async Task<ImportStudentsCsvResponse> ImportStudentsFromCsvAsync(Stream csvStream)
+        // The ZIP must contain:
+        //   - One .csv file with header: university_number,first_name,middle_name,last_name,email,phone_number
+        //   - Photo files named {university_number}.jpg / .jpeg / .png
+        public async Task<ImportStudentsCsvResponse> ImportStudentsFromCsvAsync(Stream importZipStream, int adminId)
         {
             var response = new ImportStudentsCsvResponse();
 
-            if (csvStream == null || csvStream.Length == 0)
+            if (importZipStream == null || importZipStream.Length == 0)
             {
-                response.Results.Add(new StudentImportResult
-                {
-                    IsSuccess = false,
-                    Message = "CSV file is empty or invalid"
-                });
+                response.Results.Add(new StudentImportResult { IsSuccess = false, Message = "ZIP file is empty or invalid" });
                 return response;
             }
 
+            string? csvContent = null;
+            var photos = new Dictionary<string, (byte[] Data, string Extension)>(StringComparer.OrdinalIgnoreCase);
+
             try
             {
-                using var stream = new StreamReader(csvStream, Encoding.UTF8);
-                string line;
-                int lineNumber = 0;
+                using var zip = new ZipArchive(importZipStream, ZipArchiveMode.Read, leaveOpen: true);
 
-                while ((line = await stream.ReadLineAsync()) != null)
+                foreach (var entry in zip.Entries)
                 {
-                    lineNumber++;
+                    var ext = Path.GetExtension(entry.Name).ToLowerInvariant();
 
-                    if (lineNumber == 1)
-                        continue;
+                    if (ext == ".csv" && csvContent == null)
+                    {
+                        using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
+                        csvContent = await reader.ReadToEndAsync();
+                    }
+                    else if (ext == ".jpg" || ext == ".jpeg" || ext == ".png")
+                    {
+                        var key = Path.GetFileNameWithoutExtension(entry.Name);
+                        if (string.IsNullOrEmpty(key)) continue;
 
-                    var result = await ProcessCsvLine(line, lineNumber);
-                    response.Results.Add(result);
-
-                    response.TotalRecords++;
-                    if (result.IsSuccess)
-                        response.SuccessfulImports++;
-                    else
-                        response.FailedImports++;
+                        using var ms = new MemoryStream();
+                        await entry.Open().CopyToAsync(ms);
+                        photos[key] = (ms.ToArray(), ext);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                response.Results.Add(new StudentImportResult
-                {
-                    IsSuccess = false,
-                    Message = $"Error reading CSV file: {ex.Message}"
-                });
+                response.Results.Add(new StudentImportResult { IsSuccess = false, Message = $"Failed to read ZIP: {ex.Message}" });
+                return response;
+            }
+
+            if (csvContent == null)
+            {
+                response.Results.Add(new StudentImportResult { IsSuccess = false, Message = "No CSV file found inside the ZIP" });
+                return response;
+            }
+
+            if (photos.Count == 0)
+            {
+                response.Results.Add(new StudentImportResult { IsSuccess = false, Message = "No photo files found inside the ZIP" });
+                return response;
+            }
+
+            var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            for (int i = 1; i < lines.Length; i++) // skip header
+            {
+                var result = await ProcessStudentRowAsync(lines[i].TrimEnd('\r'), i + 1, photos, adminId);
+                response.Results.Add(result);
+                response.TotalRecords++;
+                if (result.IsSuccess) response.SuccessfulImports++;
+                else response.FailedImports++;
             }
 
             return response;
         }
 
-        private async Task<StudentImportResult> ProcessCsvLine(string line, int lineNumber)
+        private async Task<StudentImportResult> ProcessStudentRowAsync(
+            string line, int lineNumber,
+            Dictionary<string, (byte[] Data, string Extension)> photos,
+            int adminId)
         {
             try
             {
                 var parts = ParseCsvLine(line);
 
-                if (parts.Length < 2)
-                {
-                    return new StudentImportResult
-                    {
-                        IsSuccess = false,
-                        Message = $"Line {lineNumber}: Insufficient columns. Minimum required: university_number, full_name (or first_name, last_name)"
-                    };
-                }
+                if (parts.Length < 4)
+                    return Fail(lineNumber, null, "Insufficient columns. Expected: university_number,first_name,middle_name,last_name[,email,phone_number]");
 
                 var universityNumber = parts[0].Trim();
-                string firstName = string.Empty;
-                string lastName = string.Empty;
-                string email = string.Empty;
-                string phoneNumber = string.Empty;
-                string faceId = string.Empty;
-
-                // Format: university_number,full_name,email,phone_number,face_id
-                if (parts.Length >= 5)
-                {
-                    var fullName = parts[1].Trim().Split(' ');
-                    firstName = fullName[0];
-                    lastName = fullName.Length > 1 ? string.Join(" ", fullName.Skip(1)) : fullName[0];
-                    email = parts[2].Trim();
-                    phoneNumber = parts[3].Trim();
-                    faceId = parts[4].Trim();
-                }
-                else if (parts.Length == 4)
-                {
-                    var fullName = parts[1].Trim().Split(' ');
-                    firstName = fullName[0];
-                    lastName = fullName.Length > 1 ? string.Join(" ", fullName.Skip(1)) : fullName[0];
-                    email = parts[2].Trim();
-                    phoneNumber = parts[3].Trim();
-                }
-                else if (parts.Length == 3)
-                {
-                    var fullName = parts[1].Trim().Split(' ');
-                    firstName = fullName[0];
-                    lastName = fullName.Length > 1 ? string.Join(" ", fullName.Skip(1)) : fullName[0];
-                    email = parts[2].Trim();
-                }
-                else if (parts.Length == 2)
-                {
-                    var fullName = parts[1].Trim().Split(' ');
-                    firstName = fullName[0];
-                    lastName = fullName.Length > 1 ? string.Join(" ", fullName.Skip(1)) : fullName[0];
-                }
+                var firstName        = parts[1].Trim();
+                var middleName       = parts[2].Trim();
+                var lastName         = parts[3].Trim();
+                var email            = parts.Length > 4 ? parts[4].Trim() : string.Empty;
+                var phoneNumber      = parts.Length > 5 ? parts[5].Trim() : string.Empty;
 
                 if (string.IsNullOrEmpty(universityNumber) || string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
+                    return Fail(lineNumber, universityNumber, "university_number, first_name, and last_name are required");
+
+                if (!photos.TryGetValue(universityNumber, out var photo))
+                    return Fail(lineNumber, universityNumber, $"Photo not found in ZIP (expected: {universityNumber}.jpg/png)");
+
+                using var photoStream = new MemoryStream(photo.Data);
+                var (uploadSuccess, photoUrl, uploadError) =
+                    await _cloudinaryService.UploadImageAsync(photoStream, $"{universityNumber}{photo.Extension}");
+
+                if (!uploadSuccess)
+                    return Fail(lineNumber, universityNumber, $"Cloudinary upload failed: {uploadError}");
+
+                var fullName = $"{firstName} {middleName} {lastName}".Replace("  ", " ").Trim();
+
+                var existing = await _studentRepository.GetByUniversityNumberAsync(universityNumber);
+
+                if (existing != null)
                 {
+                    existing.first_name  = firstName;
+                    existing.middle_name = middleName;
+                    existing.last_name   = lastName;
+                    existing.photo_url   = photoUrl;
+                    if (!string.IsNullOrEmpty(email))       existing.email        = email;
+                    if (!string.IsNullOrEmpty(phoneNumber)) existing.phone_number = phoneNumber;
+                    existing.updated_at = DateTime.UtcNow;
+                    existing.updated_by = adminId;
+
+                    await _studentRepository.UpdateAsync(existing);
+
                     return new StudentImportResult
                     {
+                        StudentId = existing.id,
                         UniversityNumber = universityNumber,
-                        FullName = $"{firstName} {lastName}",
-                        IsSuccess = false,
-                        Message = $"Line {lineNumber}: University number, first name, and last name are required"
-                    };
-                }
-
-                var existingStudent = await _studentRepository.GetByUniversityNumberAsync(universityNumber);
-
-                if (existingStudent != null)
-                {
-                    existingStudent.first_name = firstName;
-                    existingStudent.last_name = lastName;
-                    if (!string.IsNullOrEmpty(email))
-                        existingStudent.email = email;
-                    if (!string.IsNullOrEmpty(phoneNumber))
-                        existingStudent.phone_number = phoneNumber;
-                    if (!string.IsNullOrEmpty(faceId))
-                        existingStudent.face_id = faceId;
-                    existingStudent.updated_at = DateTime.UtcNow;
-
-                    await _studentRepository.UpdateAsync(existingStudent);
-
-                    return new StudentImportResult
-                    {
-                        StudentId = existingStudent.id,
-                        UniversityNumber = universityNumber,
-                        FullName = $"{firstName} {lastName}",
-                        Email = existingStudent.email,
-                        PhoneNumber = existingStudent.phone_number,
-                        FaceId = existingStudent.face_id,
+                        FullName = fullName,
+                        Email = existing.email,
+                        PhoneNumber = existing.phone_number,
+                        PhotoUrl = photoUrl,
                         IsSuccess = true,
                         Message = "Updated existing student"
                     };
                 }
                 else
                 {
-                    var generatedEmail = string.IsNullOrEmpty(email)
+                    var resolvedEmail = string.IsNullOrEmpty(email)
                         ? $"{universityNumber.Replace("-", "")}@student.vu.edu".ToLower()
                         : email;
 
-                    var newStudent = new Student
+                    var student = new Student
                     {
                         university_number = universityNumber,
-                        first_name = firstName,
-                        last_name = lastName,
-                        email = generatedEmail,
-                        phone_number = phoneNumber,
-                        user_name = universityNumber,
-                        // Stored as a BCrypt hash; the student still signs in with the plaintext default.
-                        password = _passwordHasher.Hash(DefaultImportPassword),
-                        face_id = faceId ?? string.Empty,
-                        created_at = DateTime.UtcNow
+                        first_name        = firstName,
+                        middle_name       = middleName,
+                        last_name         = lastName,
+                        email             = resolvedEmail,
+                        phone_number      = phoneNumber,
+                        user_name         = universityNumber,
+                        password          = _passwordHasher.Hash(DefaultImportPassword),
+                        photo_url         = photoUrl,
+                        face_id           = string.Empty,
+                        created_at        = DateTime.UtcNow,
+                        created_by        = adminId
                     };
 
-                    await _studentRepository.AddAsync(newStudent);
+                    await _studentRepository.AddAsync(student);
 
                     return new StudentImportResult
                     {
-                        StudentId = newStudent.id,
+                        StudentId = student.id,
                         UniversityNumber = universityNumber,
-                        FullName = $"{firstName} {lastName}",
-                        Email = generatedEmail,
+                        FullName = fullName,
+                        Email = resolvedEmail,
                         PhoneNumber = phoneNumber,
-                        FaceId = faceId,
+                        PhotoUrl = photoUrl,
                         IsSuccess = true,
                         Message = "Created new student"
                     };
@@ -216,14 +223,12 @@ namespace ExamProctoring.Application.Features.Students.Services
             }
             catch (Exception ex)
             {
-                var message = ex.InnerException?.Message ?? ex.Message;
-                return new StudentImportResult
-                {
-                    IsSuccess = false,
-                    Message = $"Line {lineNumber}: {message}"
-                };
+                return Fail(lineNumber, null, ex.InnerException?.Message ?? ex.Message);
             }
         }
+
+        private static StudentImportResult Fail(int lineNumber, string? universityNumber, string reason) =>
+            new() { IsSuccess = false, UniversityNumber = universityNumber ?? string.Empty, Message = $"Line {lineNumber}: {reason}" };
 
         private string[] ParseCsvLine(string line)
         {
@@ -234,18 +239,14 @@ namespace ExamProctoring.Application.Features.Students.Services
             foreach (char c in line)
             {
                 if (c == '"')
-                {
                     inQuotes = !inQuotes;
-                }
                 else if (c == ',' && !inQuotes)
                 {
                     result.Add(current.ToString());
                     current.Clear();
                 }
                 else
-                {
                     current.Append(c);
-                }
             }
 
             result.Add(current.ToString());

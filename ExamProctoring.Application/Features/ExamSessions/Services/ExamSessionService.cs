@@ -1,4 +1,5 @@
-﻿using ExamProctoring.Application.Common.Interfaces;
+﻿using ExamProctoring.Application.Common.DTOs;
+using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.ExamSessions.DTOs;
 using ExamProctoring.Domain.Entities;
 using ExamProctoring.Domain.Enums;
@@ -112,13 +113,25 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
 
             var enrolledCount = 0;
             var unmatched = new List<string>();
+            var conflicting = new List<string>();
             if (csvNumbers.Any())
             {
                 var students = await _studentRepository.GetByUniversityNumbersAsync(csvNumbers);
                 var matchedNumbers = students.Select(s => s.university_number).ToHashSet();
                 unmatched = csvNumbers.Where(n => !matchedNumbers.Contains(n)).ToList();
 
-                var studentSessions = students.Select(s => new StudentSession
+                var sessionEnd = session.start_time.AddMinutes(session.duration_minutes);
+                var conflicts = await _examSessionRepository.GetStudentSessionsWithTimeConflictAsync(
+                    students.Select(s => s.id), session.start_time, sessionEnd);
+                var conflictingStudentIds = conflicts.Select(c => c.student_id).ToHashSet();
+
+                conflicting = students
+                    .Where(s => conflictingStudentIds.Contains(s.id))
+                    .Select(s => s.university_number)
+                    .ToList();
+
+                var studentsToEnroll = students.Where(s => !conflictingStudentIds.Contains(s.id)).ToList();
+                var studentSessions = studentsToEnroll.Select(s => new StudentSession
                 {
                     exam_session_id = session.id,
                     student_id = s.id,
@@ -127,7 +140,8 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                     created_by = actorId,
                 }).ToList();
 
-                await _examSessionRepository.AddStudentSessionsAsync(studentSessions);
+                if (studentSessions.Any())
+                    await _examSessionRepository.AddStudentSessionsAsync(studentSessions);
                 enrolledCount = studentSessions.Count;
             }
 
@@ -137,6 +151,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 Session = details!,
                 EnrolledStudentsCount = enrolledCount,
                 UnmatchedUniversityNumbers = unmatched,
+                ConflictingStudentNumbers = conflicting,
             });
         }
 
@@ -175,11 +190,12 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
             return numbers.Any() ? numbers.Distinct().ToList() : null;
         }
 
-        public async Task<IEnumerable<ExamSessionDto>> GetAllSessionsAsync(int page, int pageSize)
+        public async Task<PagedResult<ExamSessionDto>> GetAllSessionsAsync(int page, int pageSize, int? adminId = null)
         {
-            var sessions = await _examSessionRepository.GetAllSessionsAsync(page, pageSize);
+            var sessions = await _examSessionRepository.GetAllSessionsAsync(page, pageSize, adminId);
+            var totalCount = await _examSessionRepository.CountAllSessionsAsync(adminId);
 
-            return sessions.Select(s => new ExamSessionDto
+            var items = sessions.Select(s => new ExamSessionDto
             {
                 Id = s.id,
                 Title = s.title,
@@ -200,14 +216,27 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 UpdatedBy = s.updated_by,
                 StudentCount = s.StudentSessions?.Count ?? 0,
                 ProctorName = s.ProctorSessions?.FirstOrDefault()?.Proctor?.full_name ?? "N/A"
-            });
+            }).ToList();
+
+            return new PagedResult<ExamSessionDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
         }
 
-        public async Task<ExamSessionDetailsDto?> GetSessionDetailsAsync(int id)
+        public async Task<ExamSessionDetailsDto?> GetSessionDetailsAsync(int id, int? adminId = null)
         {
             var session = await _examSessionRepository.GetByIdWithProctorsAsync(id);
 
             if (session == null)
+                return null;
+
+            // Treated as not found rather than forbidden: an admin should not be able
+            // to learn that another admin's session exists by probing ids.
+            if (adminId.HasValue && session.created_by_admin_id != adminId.Value)
                 return null;
 
             var assignedProctors = session.ProctorSessions?
@@ -451,16 +480,24 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 if (studentsToAdd.Count != request.StudentIdsToAdd.Length)
                     return (EditRestoreSessionResult.InvalidStudent, null);
 
-                var newStudentSessions = studentsToAdd.Select(s => new StudentSession
-                {
-                    exam_session_id = id,
-                    student_id = s.id,
-                    status = StudentSessionStatus.NotStarted,
-                    created_at = DateTime.UtcNow,
-                    created_by = actorId,
-                }).ToList();
+                var sessionEnd = session.start_time.AddMinutes(session.duration_minutes);
+                var conflicts = await _examSessionRepository.GetStudentSessionsWithTimeConflictAsync(
+                    studentsToAdd.Select(s => s.id), session.start_time, sessionEnd);
+                var conflictingIds = conflicts.Select(c => c.student_id).ToHashSet();
 
-                await _examSessionRepository.AddStudentSessionsAsync(newStudentSessions);
+                var newStudentSessions = studentsToAdd
+                    .Where(s => !conflictingIds.Contains(s.id))
+                    .Select(s => new StudentSession
+                    {
+                        exam_session_id = id,
+                        student_id = s.id,
+                        status = StudentSessionStatus.NotStarted,
+                        created_at = DateTime.UtcNow,
+                        created_by = actorId,
+                    }).ToList();
+
+                if (newStudentSessions.Any())
+                    await _examSessionRepository.AddStudentSessionsAsync(newStudentSessions);
             }
 
             // Remove students if provided
@@ -495,7 +532,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 return PublishExamSessionResult.StartTimeInPast;
 
             var bankIsReady = session.QuestionBank != null
-                && session.QuestionBank.status == QuestionBankStatus.Published
+                && session.QuestionBank.status != QuestionBankStatus.Archived
                 && session.QuestionBank.Questions.Any();
 
             if (!bankIsReady)

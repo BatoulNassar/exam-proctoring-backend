@@ -34,7 +34,7 @@ namespace ExamProctoring.Application.Features.Students.Services
                 var uploadParams = new ImageUploadParams()
                 {
                     File = new FileDescription(fileName, imageStream),
-                    PublicId = $"student-faces/{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid()}",
+                    PublicId = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid()}",
                     Folder = "exam-proctoring/student-faces",
                     Overwrite = false
                 };

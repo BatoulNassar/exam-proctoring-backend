@@ -9,10 +9,12 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
     public class QuestionBankService : IQuestionBankService
     {
         private readonly IQuestionBankRepository _questionBankRepository;
+        private readonly ISystemSettingsRepository _settingsRepository;
 
-        public QuestionBankService(IQuestionBankRepository questionBankRepository)
+        public QuestionBankService(IQuestionBankRepository questionBankRepository, ISystemSettingsRepository settingsRepository)
         {
             _questionBankRepository = questionBankRepository;
+            _settingsRepository = settingsRepository;
         }
 
         public async Task<(UploadQuestionBankResult Result, QuestionBankDetailsDto? Data)> UploadQuestionBankAsync(
@@ -80,14 +82,19 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
                 if (questions.Count == 0)
                     return (UploadQuestionBankResult.InvalidCsv, null);
 
+                var existing = await _questionBankRepository.GetActiveByCourseCodeAsync(request.CourseCode.Trim());
+                if (existing != null)
+                    return (UploadQuestionBankResult.DuplicateCourseCode, null);
+
+                var systemSettings = await _settingsRepository.GetAsync();
                 var questionBank = new Domain.Entities.QuestionBank
                 {
                     title = request.Title.Trim(),
                     course_code = request.CourseCode.Trim(),
                     version = request.Version.Trim(),
                     status = QuestionBankStatus.Draft,
-                    randomization = request.Randomization,
-                    option_shuffle = request.OptionShuffle,
+                    randomization = request.Randomization ?? systemSettings?.question_randomisation ?? false,
+                    option_shuffle = request.OptionShuffle ?? systemSettings?.option_shuffle ?? false,
                     authored_by_admin_id = adminId,
                     created_at = DateTime.UtcNow,
                     created_by = adminId,
@@ -133,6 +140,23 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
             return (GetQuestionBankResult.Success, dto);
         }
 
+        public async Task<DeleteQuestionBankResult> DeleteQuestionBankAsync(int id, int adminId)
+        {
+            var bank = await _questionBankRepository.GetByIdAsync(id);
+            if (bank == null)
+                return DeleteQuestionBankResult.NotFound;
+
+            if (bank.status != QuestionBankStatus.Draft)
+                return DeleteQuestionBankResult.NotDraft;
+
+            bank.is_deleted = true;
+            bank.deleted_at = DateTime.UtcNow;
+            bank.deleted_by = adminId;
+
+            await _questionBankRepository.UpdateAsync(bank);
+            return DeleteQuestionBankResult.Success;
+        }
+
         private QuestionBankDetailsDto MapToDetailsDto(Domain.Entities.QuestionBank bank)
         {
             return new QuestionBankDetailsDto
@@ -150,6 +174,9 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
                 {
                     Id = q.id,
                     Type = q.type.ToString(),
+                    GradingMode = q.type == QuestionType.MultipleChoice || q.type == QuestionType.TrueFalse
+                        ? "Auto"
+                        : "Manual",
                     QuestionText = q.question_text,
                     Marks = q.marks,
                     OptionA = q.option_a,

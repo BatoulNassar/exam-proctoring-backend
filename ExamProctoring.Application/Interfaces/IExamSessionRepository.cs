@@ -9,7 +9,12 @@ namespace ExamProctoring.Application.Common.Interfaces
 {
     public interface IExamSessionRepository
     {
-        Task<IEnumerable<ExamSession>> GetAllSessionsAsync(int page, int pageSize);
+        /// <param name="adminId">
+        /// Owner scope: null returns every session (SuperAdmin), a value returns only
+        /// sessions that admin created. Derived from the token, never the request.
+        /// </param>
+        Task<IEnumerable<ExamSession>> GetAllSessionsAsync(int page, int pageSize, int? adminId = null);
+        Task<int> CountAllSessionsAsync(int? adminId = null);
         Task<ExamSession?> GetByIdWithDetailsAsync(int id);
         Task<ExamSession?> GetByIdAsync(int id);
         Task<ExamSession?> GetByIdWithQuestionBankAsync(int id);
@@ -27,5 +32,7 @@ namespace ExamProctoring.Application.Common.Interfaces
         Task<IEnumerable<WeeklyExamSessionStatsDto>> GetWeeklyStatisticsAsync();
         Task<int> CountActiveSessionsAsync();
         Task<int> CountStudentsInExamAsync();
+        Task<IEnumerable<StudentSession>> GetStudentSessionsWithAlertsAsync(int examSessionId);
+        Task<IEnumerable<StudentSession>> GetStudentSessionsWithTimeConflictAsync(IEnumerable<int> studentIds, DateTime startTime, DateTime endTime);
     }
 }

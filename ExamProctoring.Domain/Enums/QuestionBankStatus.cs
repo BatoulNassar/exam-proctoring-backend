@@ -9,7 +9,7 @@ namespace ExamProctoring.Domain.Enums
     public enum QuestionBankStatus
     {
         Draft = 1,
-        Published = 2,
+        Locked = 2,
         Archived = 3,
     }
 }

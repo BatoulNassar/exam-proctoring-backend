@@ -14,8 +14,16 @@ namespace ExamProctoring.Application.Common.Interfaces
         Task AddAsync(User user);
         Task UpdateAsync(User user);
         Task<IEnumerable<User>> GetAdminsWithPermissionsPagedAsync(int page, int pageSize);
+
+        /// <summary>
+        /// Total for <see cref="GetAdminsWithPermissionsPagedAsync"/>. Must stay in
+        /// step with that query's filter, which covers Admin and Proctor alike —
+        /// CountAdminsAsync counts Admin only and would under-report here.
+        /// </summary>
+        Task<int> CountAdminsWithPermissionsAsync();
         Task<int> CountAdminsAsync();
         Task<bool> EmailExistsAsync(string email);
+        Task<User?> GetByEmailAsync(string email);
         Task DeleteAsync(User user);
     }
 }

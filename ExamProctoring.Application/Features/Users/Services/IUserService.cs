@@ -1,4 +1,5 @@
-﻿using ExamProctoring.Application.Features.Users.DTOs;
+﻿using ExamProctoring.Application.Common.DTOs;
+using ExamProctoring.Application.Features.Users.DTOs;
 using ExamProctoring.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -12,7 +13,7 @@ namespace ExamProctoring.Application.Features.Users.Services
     {
         Task<CreateAdminResponseDto> CreateAdminAsync(CreateAdminRequestDto request);
         Task DeleteAdminAsync(int adminId);
-        Task<IEnumerable<UserResponseDto>> GetAllAdminsWithPermissionsAsync(int page, int pageSize);
+        Task<PagedResult<UserResponseDto>> GetAllAdminsWithPermissionsAsync(int page, int pageSize);
         Task<(bool Success, string Message)> DeactivateAdminAsync(int adminId, int actorId);
         Task<(bool Success, string Message)> ReactivateAdminAsync(int adminId, int actorId);
     }

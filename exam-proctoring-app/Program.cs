@@ -2,6 +2,9 @@ using ExamProctoring.Application.Common;
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Common.Settings;
 using ExamProctoring.Application.Features.Alerts.Services;
+using ExamProctoring.Application.Features.Monitoring.Services;
+using ExamProctoring.Application.Features.Settings.Services;
+using ExamProctoring.API.Hubs;
 using ExamProctoring.Application.Features.AuditLogs.Services;
 using ExamProctoring.Application.Features.Auth.Services;
 using ExamProctoring.Application.Features.Auth.Validators;
@@ -9,6 +12,7 @@ using ExamProctoring.Application.Features.Dashboard.Services;
 using ExamProctoring.Application.Features.Eligibility.Services;
 using ExamProctoring.Application.Features.ExamSessions.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
+using ExamProctoring.API.Services;
 using ExamProctoring.Application.Features.Roles.Services;
 using ExamProctoring.Application.Features.Students.Services;
 using ExamProctoring.Application.Features.StudentAuth.Services;
@@ -67,7 +71,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("ServerConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("LocalConnection")));
 
 // ���������
 builder.Services.AddOptions<JwtSettings>()
@@ -96,6 +100,8 @@ builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IAlertRepository, AlertRepository>();
+builder.Services.AddScoped<IAlertEventRepository, AlertEventRepository>();
+builder.Services.AddScoped<IProctorActionRepository, ProctorActionRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
 builder.Services.AddScoped<IExamSessionRepository, ExamSessionRepository>();
@@ -106,21 +112,30 @@ builder.Services.AddScoped<IStudentLoginAttemptRepository, StudentLoginAttemptRe
 builder.Services.AddScoped<IStudentSessionRepository, StudentSessionRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
+builder.Services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
+builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 
 // ===== Infrastructure services =====
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddOptions<EmailSettings>()
+    .Bind(builder.Configuration.GetSection("Email"));
 
 // ===== Application services =====
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<IMonitoringService, MonitoringService>();
+builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
+builder.Services.AddScoped<IMonitoringNotifier, SignalRMonitoringNotifier>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IExamSessionService, ExamSessionService>();
 builder.Services.AddScoped<IExamSessionStateTransitionService, ExamSessionStateTransitionService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IProctorDashboardService, ProctorDashboardService>();
 builder.Services.AddScoped<IQuestionBankService, QuestionBankService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
@@ -129,7 +144,9 @@ builder.Services.AddScoped<IStudentAuthService, StudentAuthService>();
 builder.Services.AddScoped<IEligibilityService, EligibilityService>();
 
 // Background services
+builder.Services.AddScoped<IQuestionBankStateTransitionService, QuestionBankStateTransitionService>();
 builder.Services.AddHostedService<ExamSessionStateCheckBackgroundService>();
+builder.Services.AddHostedService<QuestionBankStateCheckBackgroundService>();
 
 // Validation
 builder.Services.AddValidatorsFromAssembly(typeof(LoginRequestValidator).Assembly);
@@ -197,6 +214,8 @@ builder.Services.AddAuthorization(options =>
                   int.TryParse(context.User.FindFirst("student_id")?.Value, out var studentId)
                   && studentId > 0));
 });
+builder.Services.AddAuthorization();
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -213,5 +232,6 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<MonitoringHub>("/ws/monitoring");
 
 app.Run();

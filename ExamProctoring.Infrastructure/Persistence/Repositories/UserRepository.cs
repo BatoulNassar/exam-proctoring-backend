@@ -75,13 +75,21 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         public async Task<IEnumerable<User>> GetAdminsWithPermissionsPagedAsync(int page, int pageSize)
         {
             return await _context.Users
-                .Where(u => u.UserRoles.Any(ur => ur.Role.name == "Admin" ))
+                .Where(u => u.UserRoles.Any(ur => ur.Role.name == "Admin" || ur.Role.name == "Proctor"))
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
+                        .ThenInclude(r => r.PermissionRoles)
+                            .ThenInclude(pr => pr.Permission)
                 .OrderBy(u => u.full_name)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+        }
+
+        public async Task<int> CountAdminsWithPermissionsAsync()
+        {
+            return await _context.Users
+                .CountAsync(u => u.UserRoles.Any(ur => ur.Role.name == "Admin" || ur.Role.name == "Proctor"));
         }
 
         public async Task<IEnumerable<User>> GetAdminsBasicPagedAsync(int page, int pageSize)
@@ -103,6 +111,11 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         public async Task<bool> EmailExistsAsync(string email)
         {
             return await _context.Users.AnyAsync(u => u.email == email);
+        }
+
+        public async Task<User?> GetByEmailAsync(string email)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.email == email);
         }
 
         public async Task DeleteAsync(User user)

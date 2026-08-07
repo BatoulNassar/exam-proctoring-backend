@@ -1,5 +1,6 @@
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Domain.Entities;
+using ExamProctoring.Domain.Enums;
 using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
@@ -36,6 +37,30 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         {
             return await _context.QuestionBanks
                 .Include(qb => qb.Questions)
+                .ToListAsync();
+        }
+
+        public async Task<QuestionBank?> GetActiveByCourseCodeAsync(string courseCode)
+        {
+            return await _context.QuestionBanks
+                .FirstOrDefaultAsync(qb =>
+                    qb.course_code == courseCode &&
+                    qb.status != QuestionBankStatus.Archived);
+        }
+
+        public async Task<IEnumerable<QuestionBank>> GetDraftBanksWithSessionsAsync()
+        {
+            return await _context.QuestionBanks
+                .Include(qb => qb.ExamSessions)
+                .Where(qb => qb.status == QuestionBankStatus.Draft)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<QuestionBank>> GetLockedBanksWithSessionsAsync()
+        {
+            return await _context.QuestionBanks
+                .Include(qb => qb.ExamSessions)
+                .Where(qb => qb.status == QuestionBankStatus.Locked)
                 .ToListAsync();
         }
 

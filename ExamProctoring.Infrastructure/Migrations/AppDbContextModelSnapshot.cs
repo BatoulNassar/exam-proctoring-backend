@@ -58,6 +58,16 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Property<int>("monitoring_event_id")
                         .HasColumnType("int");
 
+                    b.Property<string>("severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<int>("student_session_id")
                         .HasColumnType("int");
 
@@ -956,7 +966,6 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("face_id")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
@@ -1001,6 +1010,11 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("photo_url")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("university_number")
                         .IsRequired()
@@ -1211,6 +1225,74 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.ToTable("StudentSession", (string)null);
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.SystemSettings", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<bool>("ambient_audio_monitoring")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<int>("face_match_threshold")
+                        .HasColumnType("int");
+
+                    b.Property<string>("face_sensitivity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("gaze_alert_threshold_sec")
+                        .HasColumnType("int");
+
+                    b.Property<int>("grace_period_minutes")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("login_window_minutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("max_liveness_attempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("max_warnings_before_termination")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("option_shuffle")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("question_randomisation")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.ToTable("SystemSettings", (string)null);
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.User", b =>
                 {
                     b.Property<int>("id")
@@ -1256,6 +1338,12 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Property<string>("phone_number")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("reset_otp")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("reset_otp_expires_at")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("updated_at")
                         .HasColumnType("datetime2");

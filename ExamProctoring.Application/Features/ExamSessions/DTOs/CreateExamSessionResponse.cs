@@ -7,5 +7,6 @@ namespace ExamProctoring.Application.Features.ExamSessions.DTOs
         public ExamSessionDetailsDto Session { get; set; } = null!;
         public int EnrolledStudentsCount { get; set; }
         public List<string> UnmatchedUniversityNumbers { get; set; } = new();
+        public List<string> ConflictingStudentNumbers { get; set; } = new();
     }
 }

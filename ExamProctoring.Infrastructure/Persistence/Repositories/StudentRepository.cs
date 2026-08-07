@@ -23,6 +23,23 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<Student>> GetPagedAsync(int page, int pageSize)
+        {
+            return await _context.Students
+                // Ordered by id as the tiebreaker: first_name alone is not unique, and
+                // an unstable sort makes rows jump between pages.
+                .OrderBy(s => s.first_name)
+                .ThenBy(s => s.id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
+        public async Task<int> CountAsync()
+        {
+            return await _context.Students.CountAsync();
+        }
+
         public async Task<List<Student>> GetByUniversityNumbersAsync(IEnumerable<string> universityNumbers)
         {
             return await _context.Students

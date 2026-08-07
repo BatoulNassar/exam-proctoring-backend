@@ -79,6 +79,44 @@ namespace ExamProctoring.API.Controllers
         }
 
 
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
+        {
+            try
+            {
+                await _authService.ForgotPasswordAsync(request.Email);
+                return Ok(ApiResponse<object>.Ok(null!, "OTP sent to your email"));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception during forgot password.");
+                return StatusCode(500, ApiResponse<object>.Fail("An error occurred", 500));
+            }
+        }
+
+        [HttpPost("confirm-otp")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+        {
+            try
+            {
+                await _authService.ResetPasswordAsync(request);
+                return Ok(ApiResponse<object>.Ok(null!, "Password reset successfully"));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.Message, 400));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception during reset password.");
+                return StatusCode(500, ApiResponse<object>.Fail("An error occurred", 500));
+            }
+        }
+
         [Authorize(Policy = AuthorizationPolicies.DashboardOnly)]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request)

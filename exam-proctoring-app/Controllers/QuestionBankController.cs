@@ -34,7 +34,7 @@ namespace exam_proctoring_app.Controllers
         [Authorize(Roles = "SuperAdmin,Admin")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadQuestionBank([FromForm] string title, [FromForm] string courseCode,
-            [FromForm] string version, IFormFile csvFile, [FromForm] bool randomization, [FromForm] bool optionShuffle)
+            [FromForm] string version, IFormFile csvFile, [FromForm] bool? randomization, [FromForm] bool? optionShuffle)
         {
             var actorId = GetActorId();
             if (actorId == null)
@@ -56,7 +56,7 @@ namespace exam_proctoring_app.Controllers
             {
                 UploadQuestionBankResult.InvalidFile => BadRequest(ApiResponse<object>.Fail("CSV file is required and must not be empty", 400)),
                 UploadQuestionBankResult.InvalidCsv => BadRequest(ApiResponse<object>.Fail("CSV format is invalid or contains invalid data", 400)),
-                UploadQuestionBankResult.DuplicateTitle => Conflict(ApiResponse<object>.Fail("A question bank with this title already exists", 409)),
+                UploadQuestionBankResult.DuplicateCourseCode => Conflict(ApiResponse<object>.Fail("An active question bank already exists for this course code", 409)),
                 UploadQuestionBankResult.InternalError => StatusCode(500, ApiResponse<object>.Fail("Internal server error", 500)),
                 _ => CreatedAtAction(
                     nameof(GetQuestionBankDetails),
@@ -89,6 +89,27 @@ namespace exam_proctoring_app.Controllers
             {
                 GetQuestionBankResult.NotFound => NotFound(ApiResponse<object>.Fail("Question bank not found", 404)),
                 _ => Ok(ApiResponse<QuestionBankDetailsDto>.Ok(data, "Question bank details retrieved successfully"))
+            };
+        }
+
+        /// <summary>
+        /// Delete a question bank (only Draft banks can be deleted).
+        /// </summary>
+        [HttpDelete("{id:int}")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> DeleteQuestionBank(int id)
+        {
+            var actorId = GetActorId();
+            if (actorId == null)
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var result = await _questionBankService.DeleteQuestionBankAsync(id, actorId.Value);
+
+            return result switch
+            {
+                DeleteQuestionBankResult.NotFound => NotFound(ApiResponse<object>.Fail("Question bank not found", 404)),
+                DeleteQuestionBankResult.NotDraft => Conflict(ApiResponse<object>.Fail("Only Draft question banks can be deleted", 409)),
+                _ => Ok(ApiResponse<object>.Ok(null, "Question bank deleted successfully"))
             };
         }
     }

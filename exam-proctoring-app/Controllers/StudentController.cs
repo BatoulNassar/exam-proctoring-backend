@@ -1,8 +1,11 @@
 ﻿using ExamProctoring.API.Common;
+using ExamProctoring.Application.Common.DTOs;
 using ExamProctoring.Application.Features.Students.DTOs;
 using ExamProctoring.Application.Features.Students.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace ExamProctoring.API.Controllers
 {
@@ -14,34 +17,46 @@ namespace ExamProctoring.API.Controllers
 
         private readonly IStudentService _studentService;
 
-
         public StudentsController(IStudentService studentService)
         {
             _studentService = studentService;
+        }
+
+        private int? GetActorId()
+        {
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            return int.TryParse(claim, out var id) ? id : null;
         }
 
 
         [HttpGet]
         public async Task<IActionResult> GetAllStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
-            var result = await _studentService.GetAllStudentsAsync();
+            var result = await _studentService.GetAllStudentsAsync(page, pageSize);
 
-            return Ok(ApiResponse<IEnumerable<StudentDto>>.Ok(result, "Students retrieved successfully") );
+            return Ok(ApiResponse<PagedResult<StudentDto>>.Ok(result, $"Retrieved {result.TotalCount} students"));
         }
 
-        [HttpPost("import-csv")]
+        [HttpPost("import")]
         [Authorize(Roles = "SuperAdmin,Admin")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> ImportStudentsCsv(IFormFile csvFile)
+        public async Task<IActionResult> ImportStudents(IFormFile importZip)
         {
-            if (csvFile == null)
-                return BadRequest(ApiResponse<object>.Fail("CSV file is required", 400));
+            if (importZip == null)
+                return BadRequest(ApiResponse<object>.Fail("Import ZIP file is required", 400));
 
-            var response = await _studentService.ImportStudentsFromCsvAsync(csvFile.OpenReadStream());
+            var actorId = GetActorId();
+            if (actorId == null)
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var response = await _studentService.ImportStudentsFromCsvAsync(
+                importZip.OpenReadStream(), actorId.Value);
+
             return response.FailedImports > 0 && response.SuccessfulImports == 0
-                ? BadRequest(ApiResponse<ImportStudentsCsvResponse>.Fail("Import failed", 400))
+                ? BadRequest(ApiResponse<ImportStudentsCsvResponse>.Ok(response, "All records failed to import"))
                 : Ok(ApiResponse<ImportStudentsCsvResponse>.Ok(response,
-                    $"Imported: {response.SuccessfulImports} succeeded, {response.FailedImports} failed"));
+                    $"Import complete: {response.SuccessfulImports} succeeded, {response.FailedImports} failed"));
         }
     }
 }

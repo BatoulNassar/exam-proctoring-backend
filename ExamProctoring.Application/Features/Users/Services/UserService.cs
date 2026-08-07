@@ -1,4 +1,5 @@
-﻿using ExamProctoring.Application.Common.Interfaces;
+﻿using ExamProctoring.Application.Common.DTOs;
+using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.Auth.Services;
 using ExamProctoring.Application.Features.Users.DTOs;
 using ExamProctoring.Domain.Entities;
@@ -118,14 +119,25 @@ namespace ExamProctoring.Application.Features.Users.Services
            .ToArray());
         }
 
-        public async Task<IEnumerable<UserResponseDto>> GetAllAdminsWithPermissionsAsync(int page, int pageSize)
+        public async Task<PagedResult<UserResponseDto>> GetAllAdminsWithPermissionsAsync(int page, int pageSize)
         {
             var admins = await _userRepository.GetAdminsWithPermissionsPagedAsync(page, pageSize);
-            return admins.Select(a => new UserResponseDto
+            var totalCount = await _userRepository.CountAdminsWithPermissionsAsync();
+
+            var items = admins.Select(a => new UserResponseDto
             {
+                Id = a.id,
                 UserName = a.user_name ?? string.Empty,
                 Permissions = a.UserRoles?.SelectMany(ur => ur.Role.PermissionRoles).Select(pr => pr.Permission.name).Distinct().ToList() ?? new List<string>()
-            });
+            }).ToList();
+
+            return new PagedResult<UserResponseDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
         }
 
         public async Task<(bool Success, string Message)> DeactivateAdminAsync(int adminId, int actorId)

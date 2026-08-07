@@ -20,18 +20,55 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task<IEnumerable<ExamSession>> GetAllSessionsAsync(int page, int pageSize)
+        public async Task<IEnumerable<ExamSession>> GetAllSessionsAsync(int page, int pageSize, int? adminId = null)
         {
-            return await _context.ExamSessions
-            .Include(es => es.QuestionBank)
+            var query = _context.ExamSessions.AsQueryable();
+
+            if (adminId.HasValue)
+                query = query.Where(es => es.created_by_admin_id == adminId.Value);
+
+            var sessions = await query
             .Include(es => es.StudentSessions)
             .Include(es => es.ProctorSessions)
                 .ThenInclude(ps => ps.Proctor)
             .OrderBy(es => es.start_time)
+            // start_time is not unique, and without a tiebreaker the order differs
+            // between page requests, so rows can repeat or vanish across pages.
+            .ThenBy(es => es.id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
+
+            // The question bank is loaded separately on purpose. question_bank_id is
+            // non-nullable, so Include() emits an INNER JOIN, and the global
+            // soft-delete filter would then drop every session whose bank was
+            // deleted — the session would disappear from the list while still being
+            // counted in the total.
+            var bankIds = sessions.Select(s => s.question_bank_id).Distinct().ToList();
+
+            var banks = await _context.QuestionBanks
+                .IgnoreQueryFilters()
+                .Where(b => bankIds.Contains(b.id))
+                .ToDictionaryAsync(b => b.id);
+
+            foreach (var session in sessions)
+            {
+                if (banks.TryGetValue(session.question_bank_id, out var bank))
+                    session.QuestionBank = bank;
+            }
+
+            return sessions;
         }
+        public async Task<int> CountAllSessionsAsync(int? adminId = null)
+        {
+            var query = _context.ExamSessions.AsQueryable();
+
+            if (adminId.HasValue)
+                query = query.Where(es => es.created_by_admin_id == adminId.Value);
+
+            return await query.CountAsync();
+        }
+
         public async Task<ExamSession?> GetByIdWithDetailsAsync(int id)
         {
             return await _context.ExamSessions
@@ -116,6 +153,18 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             await _context.SaveChangesAsync();
         }
 
+        public async Task<IEnumerable<StudentSession>> GetStudentSessionsWithTimeConflictAsync(IEnumerable<int> studentIds, DateTime startTime, DateTime endTime)
+        {
+            return await _context.StudentSessions
+                .Include(ss => ss.ExamSession)
+                .Where(ss => studentIds.Contains(ss.student_id) &&
+                    ss.ExamSession.status != ExamSessionStatus.CLOSED &&
+                    ss.ExamSession.status != ExamSessionStatus.ARCHIVED &&
+                    ss.ExamSession.start_time < endTime &&
+                    ss.ExamSession.start_time.AddMinutes(ss.ExamSession.duration_minutes) > startTime)
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<ProctorSession>> GetProctorSessionsWithTimeConflictAsync(int proctorId, DateTime startTime, DateTime endTime)
         {
             return await _context.ProctorSessions
@@ -187,6 +236,16 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         {
             return await _context.StudentSessions
                 .CountAsync(ss => ss.status == StudentSessionStatus.InExam);
+        }
+
+        public async Task<IEnumerable<StudentSession>> GetStudentSessionsWithAlertsAsync(int examSessionId)
+        {
+            return await _context.StudentSessions
+                .Where(ss => ss.exam_session_id == examSessionId)
+                .Include(ss => ss.Student)
+                .Include(ss => ss.Alerts)
+                .OrderBy(ss => ss.login_at)
+                .ToListAsync();
         }
     }
 }

@@ -5,6 +5,8 @@ namespace ExamProctoring.Application.Common.Interfaces
     public interface IStudentRepository
     {
         Task<IEnumerable<Student>> GetAllAsync();
+        Task<IEnumerable<Student>> GetPagedAsync(int page, int pageSize);
+        Task<int> CountAsync();
         Task<List<Student>> GetByUniversityNumbersAsync(IEnumerable<string> universityNumbers);
         Task<List<Student>> GetByIdsAsync(int[] studentIds);
         Task<Student?> GetByUniversityNumberAsync(string universityNumber);

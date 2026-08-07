@@ -1,9 +1,11 @@
 ﻿using ExamProctoring.API.Common;
+using ExamProctoring.Application.Common.DTOs;
 using ExamProctoring.Application.Features.AuditLogs.DTOs;
 using ExamProctoring.Application.Features.AuditLogs.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace exam_proctoring_app.Controllers 
@@ -26,8 +28,22 @@ namespace exam_proctoring_app.Controllers
             var audits = await _auditLogService.GetRecentAuditsAsync(page, pageSize);
 
             return Ok(
-                ApiResponse<IEnumerable<AuditLogDto>>.Ok(audits, "Audit logs retrieved successfully")
+                ApiResponse<PagedResult<AuditLogDto>>.Ok(audits, $"Retrieved {audits.TotalCount} audit logs")
             );
+        }
+
+        /// <summary>
+        /// Downloads the whole audit log as CSV. Unlike the per-session export, this
+        /// covers every entry, including actions that belong to no exam session.
+        /// </summary>
+        [HttpGet("export")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
+        public async Task<IActionResult> ExportAudits()
+        {
+            var csv = await _auditLogService.ExportCsvAsync();
+
+            var filename = $"audit_log_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+            return File(Encoding.UTF8.GetBytes(csv), "text/csv", filename);
         }
     }
 }

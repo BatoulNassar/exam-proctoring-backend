@@ -20,7 +20,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.Property(al => al.entity_type).IsRequired().HasMaxLength(50);
             builder.Property(al => al.details).HasMaxLength(1000);
 
-            builder.HasOne(al => al.ExamSession) 
+            builder.HasOne(al => al.ExamSession)
                    .WithMany(es => es.AuditLogs)
                    .HasForeignKey(al => al.exam_session_id)
                    .OnDelete(DeleteBehavior.Cascade);

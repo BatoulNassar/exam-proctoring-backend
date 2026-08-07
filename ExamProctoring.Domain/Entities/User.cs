@@ -15,6 +15,8 @@ namespace ExamProctoring.Domain.Entities
         public string full_name { get; set; }
         public string password_hash { get; set; }
         public bool is_active { get; set; } = true;
+        public string? reset_otp { get; set; }
+        public DateTime? reset_otp_expires_at { get; set; }
 
         public ICollection<ProctorAction> ProctorActions { get; set; }= new List<ProctorAction>();
         public ICollection<User_Roles> UserRoles { get; set; } =new List<User_Roles>();

@@ -5,7 +5,7 @@ namespace ExamProctoring.Application.Features.QuestionBank.DTOs
         Success,
         InvalidFile,
         InvalidCsv,
-        DuplicateTitle,
+        DuplicateCourseCode,
         InternalError
     }
 
@@ -13,5 +13,12 @@ namespace ExamProctoring.Application.Features.QuestionBank.DTOs
     {
         Success,
         NotFound
+    }
+
+    public enum DeleteQuestionBankResult
+    {
+        Success,
+        NotFound,
+        NotDraft
     }
 }

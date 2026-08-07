@@ -36,6 +36,7 @@ namespace ExamProctoring.Infrastructure.Data
         public DbSet<GradingExport> GradingExports { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<SystemSettings> SystemSettings { get; set; }
         public DbSet<StudentLoginAttempt> StudentLoginAttempts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

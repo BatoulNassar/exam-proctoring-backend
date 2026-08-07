@@ -18,6 +18,7 @@ namespace ExamProctoring.Domain.Entities
         public string last_name { get; set; }
         public string university_number { get; set; }
         public string face_id { get; set; }
+        public string photo_url { get; set; }
 
         public bool is_active { get; set; } = true;
         public int failed_login_attempts { get; set; }

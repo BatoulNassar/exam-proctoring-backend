@@ -4,6 +4,7 @@ namespace ExamProctoring.Application.Features.QuestionBank.DTOs
     {
         public int Id { get; set; }
         public string Type { get; set; }
+        public string GradingMode { get; set; }
         public string QuestionText { get; set; }
         public int Marks { get; set; }
         public string? OptionA { get; set; }

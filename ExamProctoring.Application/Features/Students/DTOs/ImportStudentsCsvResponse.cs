@@ -15,7 +15,7 @@ namespace ExamProctoring.Application.Features.Students.DTOs
         public string FullName { get; set; }
         public string Email { get; set; }
         public string PhoneNumber { get; set; }
-        public string FaceId { get; set; }
+        public string PhotoUrl { get; set; }
         public bool IsSuccess { get; set; }
         public string Message { get; set; }
     }

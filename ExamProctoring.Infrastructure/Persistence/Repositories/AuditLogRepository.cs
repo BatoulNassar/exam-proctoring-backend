@@ -20,10 +20,33 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         public async Task<IList<AuditLog>> GetRecentPagedAsync(int page, int pageSize)
         {
             return await _context.AuditLogs
-            .OrderByDescending(a => a.occurred_at)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+                .Include(a => a.ExamSession)
+                .OrderByDescending(a => a.occurred_at)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
+        public async Task<int> CountAsync()
+        {
+            return await _context.AuditLogs.CountAsync();
+        }
+
+        public async Task<IList<AuditLog>> GetAllForExportAsync()
+        {
+            return await _context.AuditLogs
+                .Include(a => a.ExamSession)
+                .OrderByDescending(a => a.occurred_at)
+                .ThenByDescending(a => a.id)
+                .ToListAsync();
+        }
+
+        public async Task<Dictionary<int, string>> GetActorNamesByIdsAsync(IEnumerable<int> ids)
+        {
+            return await _context.Users
+                .IgnoreQueryFilters()
+                .Where(u => ids.Contains(u.id))
+                .ToDictionaryAsync(u => u.id, u => u.full_name);
         }
 
         public async Task<IEnumerable<AuditLog>> GetByExamSessionIdAsync(int sessionId)
@@ -38,6 +61,11 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         {
             await _context.AuditLogs.AddAsync(auditLog);
             await _context.SaveChangesAsync();
+        }
+
+        public async Task AddDeferredAsync(AuditLog auditLog)
+        {
+            await _context.AuditLogs.AddAsync(auditLog);
         }
     }
 }

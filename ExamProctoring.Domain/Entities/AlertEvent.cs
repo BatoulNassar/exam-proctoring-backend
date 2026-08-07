@@ -1,4 +1,5 @@
 ﻿using ExamProctoring.Domain.Common;
+using ExamProctoring.Domain.Enums;
 using ExamProctoring.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,8 @@ namespace ExamProctoring.Domain.Entities
         public int student_session_id { get; set; }
         public int monitoring_event_id { get; set; }
         public string alert_type { get; set; }
+        public AlertSeverity severity { get; set; }
+        public AlertStatus status { get; set; }
         public DateTime triggered_at { get; set; }
         public DateTime? delivered_at { get; set; }
         public MonitoringEvent MonitoringEvent { get; set; }

@@ -25,7 +25,15 @@ namespace ExamProctoring.Infrastructure.Seeders
 
         public async Task SeedAsync()
         {
-            if (await _context.ExamSessions.AnyAsync()) return;
+            if (await _context.ExamSessions.AnyAsync())
+            {
+                // Base demo data is already there; only reconcile the alert samples
+                // with the alert types the system currently supports.
+                await RemoveRetiredAlertSamplesAsync();
+                await TopUpAlertSamplesAsync(DateTime.UtcNow);
+                await TopUpProctoredSessionAlertsAsync(DateTime.UtcNow);
+                return;
+            }
 
             var now = DateTime.UtcNow;
 
@@ -39,6 +47,166 @@ namespace ExamProctoring.Infrastructure.Seeders
             var studentSessions = await SeedStudentSessionsAsync(sessions, students, now);
             await SeedMonitoringAndAlertsAsync(studentSessions, admins, now);
             await SeedAuditLogsAsync(sessions, admins, now);
+            await TopUpProctoredSessionAlertsAsync(now);
+        }
+
+        private const string LiveDemoSessionTitle = "[Demo] Live Proctoring Session";
+
+        /// <summary>
+        /// Keeps one session genuinely running so the proctor dashboard can be
+        /// exercised. The other demo sessions start at a fixed time and the state
+        /// transition service closes them within days, after which no session is
+        /// ACTIVE and every proctor card reads zero.
+        /// Creates the session on first run and pushes its start time forward on
+        /// later runs whenever it is no longer active. Only this one session is
+        /// touched; nothing else is modified.
+        /// </summary>
+        private async Task EnsureLiveDemoSessionAsync(DateTime now)
+        {
+            var proctorRole = await _context.Roles.FirstOrDefaultAsync(r => r.name == "Proctor");
+            if (proctorRole == null) return;
+
+            var proctorIds = await _context.UserRoles
+                .Where(ur => ur.role_id == proctorRole.id)
+                .Select(ur => ur.user_id)
+                .Distinct()
+                .ToListAsync();
+
+            if (proctorIds.Count == 0) return;
+
+            var session = await _context.ExamSessions
+                .FirstOrDefaultAsync(e => e.title == LiveDemoSessionTitle);
+
+            var startTime = now.AddMinutes(-10);
+
+            if (session == null)
+            {
+                var bankId = await _context.QuestionBanks.Select(b => b.id).FirstOrDefaultAsync();
+                var adminId = await _context.Users.Select(u => u.id).FirstOrDefaultAsync();
+                if (bankId == 0 || adminId == 0) return;
+
+                session = new ExamSession
+                {
+                    title = LiveDemoSessionTitle,
+                    course_tag = "DEMO101",
+                    status = ExamSessionStatus.ACTIVE,
+                    start_time = startTime,
+                    // Long enough to stay ACTIVE for a working session.
+                    duration_minutes = 240,
+                    question_bank_id = bankId,
+                    grace_period_minutes = 10,
+                    login_window_minutes = 15,
+                    eye_gaze_threshold_sec = 3,
+                    created_by_admin_id = adminId,
+                    locked_at = startTime.AddMinutes(-30),
+                    active_at = startTime,
+                    created_at = startTime.AddMinutes(-30)
+                };
+
+                await _context.ExamSessions.AddAsync(session);
+                await _context.SaveChangesAsync();
+            }
+            else if (session.status != ExamSessionStatus.ACTIVE)
+            {
+                // Went stale since the last run: move it back into a running state.
+                session.status = ExamSessionStatus.ACTIVE;
+                session.start_time = startTime;
+                session.active_at = startTime;
+                session.locked_at = startTime.AddMinutes(-30);
+                session.grace_period_ended_at = null;
+                session.closed_at = null;
+                session.archived_at = null;
+                await _context.SaveChangesAsync();
+            }
+
+            // Every proctor is assigned, so any proctor login lands on real data.
+            var assigned = await _context.ProctorSessions
+                .Where(ps => ps.exam_session_id == session.id)
+                .Select(ps => ps.proctor_id)
+                .ToListAsync();
+
+            var missingProctors = proctorIds.Except(assigned).ToList();
+            if (missingProctors.Count > 0)
+            {
+                await _context.ProctorSessions.AddRangeAsync(missingProctors.Select(id => new ProctorSession
+                {
+                    exam_session_id = session.id,
+                    proctor_id = id,
+                    created_at = now,
+                    created_by = 1
+                }));
+                await _context.SaveChangesAsync();
+            }
+
+            var enrolled = await _context.StudentSessions.CountAsync(ss => ss.exam_session_id == session.id);
+            if (enrolled == 0)
+            {
+                var studentIds = await _context.Students
+                    .OrderBy(s => s.id)
+                    .Select(s => s.id)
+                    .Take(6)
+                    .ToListAsync();
+
+                await _context.StudentSessions.AddRangeAsync(studentIds.Select((id, i) => new StudentSession
+                {
+                    exam_session_id = session.id,
+                    student_id = id,
+                    status = StudentSessionStatus.InExam,
+                    login_at = startTime.AddMinutes(i),
+                    verified_at = startTime.AddMinutes(i + 1),
+                    liveness_passed = true,
+                    face_match_passed = true,
+                    created_at = startTime.AddMinutes(i)
+                }));
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        /// <summary>
+        /// Gives every running session that has a proctor assigned a spread of alerts
+        /// across all three statuses, so the proctor dashboard has something to show.
+        /// Without this a proctor can be assigned only to sessions that never raised
+        /// an alert, and every card reads zero.
+        /// Skips any session that already has four or more alerts, so repeat runs
+        /// do not pile data up.
+        /// </summary>
+        private async Task TopUpProctoredSessionAlertsAsync(DateTime now)
+        {
+            await EnsureLiveDemoSessionAsync(now);
+
+            var proctoredSessionIds = await _context.ProctorSessions
+                .Where(ps => ps.ExamSession.status == ExamSessionStatus.ACTIVE
+                          || ps.ExamSession.status == ExamSessionStatus.GRACE)
+                .Select(ps => ps.exam_session_id)
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var sessionId in proctoredSessionIds)
+            {
+                var existingAlerts = await _context.AlertEvents
+                    .CountAsync(a => a.StudentSession.exam_session_id == sessionId);
+
+                if (existingAlerts >= 4) continue;
+
+                var studentSessions = await _context.StudentSessions
+                    .Where(ss => ss.exam_session_id == sessionId)
+                    .OrderBy(ss => ss.id)
+                    .Take(4)
+                    .ToListAsync();
+
+                if (studentSessions.Count == 0) continue;
+
+                // Actions are credited to a proctor on the session, so the dashboard
+                // reflects work the proctor actually did.
+                var actorId = await _context.ProctorSessions
+                    .Where(ps => ps.exam_session_id == sessionId)
+                    .Select(ps => ps.proctor_id)
+                    .FirstOrDefaultAsync();
+
+                if (actorId == 0) continue;
+
+                await SeedExtraAlertSamplesAsync(studentSessions, actorId, now);
+            }
         }
 
         private async Task<List<User>> SeedAdminsAsync(DateTime now)
@@ -202,9 +370,9 @@ namespace ExamProctoring.Infrastructure.Seeders
         {
             var banks = new List<QuestionBank>
             {
-                new QuestionBank { title = "CS101 Question Bank",    course_code = "CS101",   status = QuestionBankStatus.Published, version = "1.2", authored_by_admin_id = admins[0].id, locked_at = now.AddDays(-10), randomization = true,  option_shuffle = true,  created_at = now.AddDays(-30) },
-                new QuestionBank { title = "MATH202 Question Bank",  course_code = "MATH202", status = QuestionBankStatus.Published, version = "1.0", authored_by_admin_id = admins[1].id, locked_at = now.AddDays(-5),  randomization = true,  option_shuffle = false, created_at = now.AddDays(-25) },
-                new QuestionBank { title = "CS201 Question Bank",    course_code = "CS201",   status = QuestionBankStatus.Published, version = "2.1", authored_by_admin_id = admins[3].id, locked_at = now.AddMonths(-14), randomization = false, option_shuffle = true, created_at = now.AddMonths(-15) },
+                new QuestionBank { title = "CS101 Question Bank",    course_code = "CS101",   status = QuestionBankStatus.Locked, version = "1.2", authored_by_admin_id = admins[0].id, locked_at = now.AddDays(-10), randomization = true,  option_shuffle = true,  created_at = now.AddDays(-30) },
+                new QuestionBank { title = "MATH202 Question Bank",  course_code = "MATH202", status = QuestionBankStatus.Locked, version = "1.0", authored_by_admin_id = admins[1].id, locked_at = now.AddDays(-5),  randomization = true,  option_shuffle = false, created_at = now.AddDays(-25) },
+                new QuestionBank { title = "CS201 Question Bank",    course_code = "CS201",   status = QuestionBankStatus.Locked, version = "2.1", authored_by_admin_id = admins[3].id, locked_at = now.AddMonths(-14), randomization = false, option_shuffle = true, created_at = now.AddMonths(-15) },
                 new QuestionBank { title = "DB202 Question Bank",    course_code = "DB202",   status = QuestionBankStatus.Draft,     version = "0.3", authored_by_admin_id = admins[2].id, locked_at = null,             randomization = true,  option_shuffle = true,  created_at = now.AddDays(-3) },
             };
 
@@ -326,7 +494,7 @@ namespace ExamProctoring.Infrastructure.Seeders
             {
                 new MonitoringEvent { student_session_id = layla.id, event_type = "MultipleFaces",    event_details = "Two faces detected in camera frame", occured_at = now.AddMinutes(-12), created_at = now.AddMinutes(-12) },
                 new MonitoringEvent { student_session_id = layla.id, event_type = "AppSwitch",        event_details = "Student switched away from the exam window", occured_at = now.AddMinutes(-8), created_at = now.AddMinutes(-8) },
-                new MonitoringEvent { student_session_id = karim.id, event_type = "ConnectivityLost", event_details = "Connection dropped for 90 seconds", occured_at = now.AddMinutes(-6), created_at = now.AddMinutes(-6) },
+                new MonitoringEvent { student_session_id = karim.id, event_type = "FaceAbsence",      event_details = "No face detected in camera frame for 8 seconds", occured_at = now.AddMinutes(-6), created_at = now.AddMinutes(-6) },
                 new MonitoringEvent { student_session_id = omar.id,  event_type = "GazeDeviation",    event_details = "Gaze away from screen for more than 3 seconds", occured_at = now.AddMinutes(-2), created_at = now.AddMinutes(-2) },
             };
             await _context.MonitoringEvents.AddRangeAsync(monitoringEvents);
@@ -334,10 +502,10 @@ namespace ExamProctoring.Infrastructure.Seeders
 
             var alerts = new List<AlertEvent>
             {
-                new AlertEvent { student_session_id = layla.id, monitoring_event_id = monitoringEvents[0].id, alert_type = "MultipleFaces",    triggered_at = monitoringEvents[0].occured_at, delivered_at = monitoringEvents[0].occured_at.AddSeconds(2), created_at = monitoringEvents[0].occured_at },
-                new AlertEvent { student_session_id = layla.id, monitoring_event_id = monitoringEvents[1].id, alert_type = "AppSwitch",        triggered_at = monitoringEvents[1].occured_at, delivered_at = monitoringEvents[1].occured_at.AddSeconds(2), created_at = monitoringEvents[1].occured_at },
-                new AlertEvent { student_session_id = karim.id, monitoring_event_id = monitoringEvents[2].id, alert_type = "ConnectivityLost", triggered_at = monitoringEvents[2].occured_at, delivered_at = monitoringEvents[2].occured_at.AddSeconds(3), created_at = monitoringEvents[2].occured_at },
-                new AlertEvent { student_session_id = omar.id,  monitoring_event_id = monitoringEvents[3].id, alert_type = "GazeDeviation",    triggered_at = monitoringEvents[3].occured_at, delivered_at = null, created_at = monitoringEvents[3].occured_at },
+                new AlertEvent { student_session_id = layla.id, monitoring_event_id = monitoringEvents[0].id, alert_type = "MultipleFaces",    severity = AlertSeverity.Critical, status = AlertStatus.Open,     triggered_at = monitoringEvents[0].occured_at, delivered_at = monitoringEvents[0].occured_at.AddSeconds(2), created_at = monitoringEvents[0].occured_at },
+                new AlertEvent { student_session_id = layla.id, monitoring_event_id = monitoringEvents[1].id, alert_type = "AppSwitch",        severity = AlertSeverity.Warning,  status = AlertStatus.Open,     triggered_at = monitoringEvents[1].occured_at, delivered_at = monitoringEvents[1].occured_at.AddSeconds(2), created_at = monitoringEvents[1].occured_at },
+                new AlertEvent { student_session_id = karim.id, monitoring_event_id = monitoringEvents[2].id, alert_type = "FaceAbsence",      severity = AlertSeverity.Warning,  status = AlertStatus.Resolved, triggered_at = monitoringEvents[2].occured_at, delivered_at = monitoringEvents[2].occured_at.AddSeconds(3), created_at = monitoringEvents[2].occured_at },
+                new AlertEvent { student_session_id = omar.id,  monitoring_event_id = monitoringEvents[3].id, alert_type = "GazeDeviation",    severity = AlertSeverity.Warning,  status = AlertStatus.Open,     triggered_at = monitoringEvents[3].occured_at, delivered_at = null, created_at = monitoringEvents[3].occured_at },
             };
             await _context.AlertEvents.AddRangeAsync(alerts);
             await _context.SaveChangesAsync();
@@ -357,7 +525,7 @@ namespace ExamProctoring.Infrastructure.Seeders
                 alert_event_id = alerts[2].id,
                 admin_id = admins[1].id,
                 action_type = ProctorActionType.Dismiss,
-                action_note = "Known network issue at the exam hall, no violation",
+                action_note = "Student leaned out of frame briefly, no violation",
                 acted_at = now.AddMinutes(-4),
                 created_at = now.AddMinutes(-4)
             };
@@ -375,6 +543,193 @@ namespace ExamProctoring.Infrastructure.Seeders
             };
             await _context.WarningMessages.AddAsync(warning);
             await _context.SaveChangesAsync();
+
+            await SeedExtraAlertSamplesAsync(studentSessions, admins[0].id, now);
+        }
+
+        /// <summary>
+        /// Adds sample alerts covering every alert type shown in the Alerts screen
+        /// filter (FaceAbsence, MultipleFaces, AudioThreshold, GazeDeviation,
+        /// AppSwitch), spread across severities and statuses so each tab and each
+        /// filter option has rows to show.
+        /// </summary>
+        /// <param name="onlyTypes">
+        /// When set, only samples of these alert types are added. Used by the top-up
+        /// path so a database that is missing just one type gets only that type.
+        /// </param>
+        private async Task SeedExtraAlertSamplesAsync(
+            List<StudentSession> pool,
+            int adminId,
+            DateTime now,
+            IReadOnlyCollection<string> onlyTypes = null)
+        {
+            if (pool.Count == 0) return;
+
+            StudentSession At(int index) => pool[index % pool.Count];
+
+            var samples = new[]
+            {
+                (Session: At(1), Type: "FaceAbsence",    Details: "No face detected in camera frame for 12 seconds",   Severity: AlertSeverity.Critical, Status: AlertStatus.Open,      MinutesAgo: 15),
+                (Session: At(3), Type: "FaceAbsence",    Details: "No face detected in camera frame for 6 seconds",    Severity: AlertSeverity.Warning,  Status: AlertStatus.Resolved,  MinutesAgo: 47),
+                (Session: At(2), Type: "AudioThreshold", Details: "Noise level above threshold for 20 seconds",        Severity: AlertSeverity.Warning,  Status: AlertStatus.Open,      MinutesAgo: 21),
+                (Session: At(4), Type: "AudioThreshold", Details: "Another voice detected in the room",                Severity: AlertSeverity.Critical, Status: AlertStatus.Escalated, MinutesAgo: 63),
+                (Session: At(4), Type: "MultipleFaces",  Details: "Two faces detected in camera frame",                Severity: AlertSeverity.Critical, Status: AlertStatus.Open,      MinutesAgo: 34),
+                (Session: At(3), Type: "MultipleFaces",  Details: "A third person appeared behind the student",        Severity: AlertSeverity.Critical, Status: AlertStatus.Escalated, MinutesAgo: 92),
+                (Session: At(1), Type: "GazeDeviation",  Details: "Gaze away from screen for more than 5 seconds",     Severity: AlertSeverity.Warning,  Status: AlertStatus.Resolved,  MinutesAgo: 28),
+                (Session: At(2), Type: "AppSwitch",      Details: "Student opened a browser tab outside the exam",     Severity: AlertSeverity.Warning,  Status: AlertStatus.Open,      MinutesAgo: 41),
+            };
+
+            if (onlyTypes != null)
+                samples = samples.Where(s => onlyTypes.Contains(s.Type)).ToArray();
+
+            if (samples.Length == 0) return;
+
+            var events = samples
+                .Select(s => new MonitoringEvent
+                {
+                    student_session_id = s.Session.id,
+                    event_type = s.Type,
+                    event_details = s.Details,
+                    occured_at = now.AddMinutes(-s.MinutesAgo),
+                    created_at = now.AddMinutes(-s.MinutesAgo)
+                })
+                .ToList();
+
+            await _context.MonitoringEvents.AddRangeAsync(events);
+            await _context.SaveChangesAsync();
+
+            var alerts = samples
+                .Select((s, i) => new AlertEvent
+                {
+                    student_session_id = s.Session.id,
+                    monitoring_event_id = events[i].id,
+                    alert_type = s.Type,
+                    severity = s.Severity,
+                    status = s.Status,
+                    triggered_at = events[i].occured_at,
+                    delivered_at = events[i].occured_at.AddSeconds(2),
+                    created_at = events[i].occured_at
+                })
+                .ToList();
+
+            await _context.AlertEvents.AddRangeAsync(alerts);
+            await _context.SaveChangesAsync();
+
+            // Resolved and escalated alerts need a matching proctor action so the
+            // Actions column is not empty for them.
+            var actions = new List<ProctorAction>();
+            for (var i = 0; i < samples.Length; i++)
+            {
+                if (samples[i].Status == AlertStatus.Resolved)
+                {
+                    actions.Add(new ProctorAction
+                    {
+                        alert_event_id = alerts[i].id,
+                        admin_id = adminId,
+                        action_type = ProctorActionType.Dismiss,
+                        action_note = "Reviewed the recording, no violation found",
+                        acted_at = alerts[i].triggered_at.AddMinutes(2),
+                        created_at = alerts[i].triggered_at.AddMinutes(2)
+                    });
+                }
+                else if (samples[i].Status == AlertStatus.Escalated)
+                {
+                    actions.Add(new ProctorAction
+                    {
+                        alert_event_id = alerts[i].id,
+                        admin_id = adminId,
+                        action_type = ProctorActionType.Escalate,
+                        action_note = "Referred to the disciplinary committee",
+                        acted_at = alerts[i].triggered_at.AddMinutes(3),
+                        created_at = alerts[i].triggered_at.AddMinutes(3)
+                    });
+                }
+            }
+
+            if (actions.Count > 0)
+            {
+                await _context.ProctorActions.AddRangeAsync(actions);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        /// <summary>
+        /// Deletes demo alerts whose type the system no longer raises, so databases
+        /// seeded before the type was retired stop showing it in the Alerts screen.
+        /// Demo data only: this never runs outside the development seed.
+        /// </summary>
+        private async Task RemoveRetiredAlertSamplesAsync()
+        {
+            var retiredTypes = new[] { "ConnectivityLost" };
+
+            var retiredAlerts = await _context.AlertEvents
+                .Where(a => retiredTypes.Contains(a.alert_type))
+                .ToListAsync();
+
+            var retiredEvents = await _context.MonitoringEvents
+                .Where(e => retiredTypes.Contains(e.event_type))
+                .ToListAsync();
+
+            if (retiredAlerts.Count == 0 && retiredEvents.Count == 0) return;
+
+            // Clear the dependants first so the delete works regardless of the
+            // cascade behaviour configured for these relationships.
+            var alertIds = retiredAlerts.Select(a => a.id).ToList();
+
+            var actions = await _context.ProctorActions
+                .Where(pa => alertIds.Contains(pa.alert_event_id))
+                .ToListAsync();
+
+            var actionIds = actions.Select(pa => pa.id).ToList();
+
+            var warnings = await _context.WarningMessages
+                .Where(w => actionIds.Contains(w.proctor_action_id))
+                .ToListAsync();
+
+            _context.WarningMessages.RemoveRange(warnings);
+            _context.ProctorActions.RemoveRange(actions);
+            _context.AlertEvents.RemoveRange(retiredAlerts);
+            _context.MonitoringEvents.RemoveRange(retiredEvents);
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Runs on databases that were already seeded before the newer alert types
+        /// existed, so the Alerts screen filters have data without a database reset.
+        /// </summary>
+        private async Task TopUpAlertSamplesAsync(DateTime now)
+        {
+            // Add samples only for the types that have no alert at all yet, so a
+            // database missing a single type still gets it.
+            var sampleTypes = new[] { "FaceAbsence", "AudioThreshold", "MultipleFaces", "GazeDeviation", "AppSwitch" };
+
+            var existingTypes = await _context.AlertEvents
+                .Where(a => sampleTypes.Contains(a.alert_type))
+                .Select(a => a.alert_type)
+                .Distinct()
+                .ToListAsync();
+
+            var missingTypes = sampleTypes.Except(existingTypes).ToList();
+            if (missingTypes.Count == 0) return;
+
+            var pool = await _context.StudentSessions
+                .Where(ss => ss.ExamSession.status == ExamSessionStatus.ACTIVE
+                          || ss.ExamSession.status == ExamSessionStatus.GRACE)
+                .OrderBy(ss => ss.id)
+                .ToListAsync();
+
+            if (pool.Count == 0)
+            {
+                pool = await _context.StudentSessions
+                    .OrderBy(ss => ss.id)
+                    .Take(5)
+                    .ToListAsync();
+            }
+
+            var admin = await _context.Users.OrderBy(u => u.id).FirstOrDefaultAsync();
+            if (pool.Count == 0 || admin == null) return;
+
+            await SeedExtraAlertSamplesAsync(pool, admin.id, now, missingTypes);
         }
 
         private async Task SeedAuditLogsAsync(List<ExamSession> sessions, List<User> admins, DateTime now)

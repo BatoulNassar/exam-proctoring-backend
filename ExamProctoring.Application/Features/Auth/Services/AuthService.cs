@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Authentication;
 using System.Threading.Tasks;
+using ExamProctoring.Application.Common.Interfaces;
 
 namespace ExamProctoring.Application.Features.Auth.Services
 {
@@ -22,8 +23,9 @@ namespace ExamProctoring.Application.Features.Auth.Services
         private readonly IPermissionRepository _permissionRepository;
         private readonly IUserRoleRepository _userRoleRepository;
         private readonly JwtSettings _jwtSettings;
+        private readonly IEmailService _emailService;
 
-        public AuthService(IUserRepository userRepository, IRefreshTokenRepository refreshTokenRepository,IPasswordHasher passwordHasher,IJwtTokenGenerator jwtTokenGenerator,IUnitOfWork unitOfWork,IRoleRepository roleRepository,IPermissionRepository permissionRepository,IUserRoleRepository userRoleRepository,IOptions<JwtSettings> jwtSettings)
+        public AuthService(IUserRepository userRepository, IRefreshTokenRepository refreshTokenRepository,IPasswordHasher passwordHasher,IJwtTokenGenerator jwtTokenGenerator,IUnitOfWork unitOfWork,IRoleRepository roleRepository,IPermissionRepository permissionRepository,IUserRoleRepository userRoleRepository,IOptions<JwtSettings> jwtSettings, IEmailService emailService)
         {
             _userRepository = userRepository;
             _refreshTokenRepository = refreshTokenRepository;
@@ -34,6 +36,7 @@ namespace ExamProctoring.Application.Features.Auth.Services
             _permissionRepository = permissionRepository;
             _userRoleRepository = userRoleRepository;
             _jwtSettings = jwtSettings.Value;
+            _emailService = emailService;
         }
 
         public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request)
@@ -173,6 +176,55 @@ namespace ExamProctoring.Application.Features.Auth.Services
 
 
             return await GenerateTokensForUserAsync(user, roles, permissions);
+        }
+
+        public async Task ForgotPasswordAsync(string email)
+        {
+            var user = await _userRepository.GetByEmailAsync(email);
+
+            if (user == null)
+                throw new InvalidOperationException("No account found with this email address");
+
+            var otp = new Random().Next(100000, 999999).ToString();
+            user.reset_otp = otp;
+            user.reset_otp_expires_at = DateTime.UtcNow.AddMinutes(15);
+            await _unitOfWork.SaveChangesAsync();
+
+            var body = $@"
+                <div style='font-family:Arial,sans-serif;max-width:400px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px'>
+                    <h2 style='color:#1d4ed8'>إعادة تعيين كلمة المرور</h2>
+                    <p>رمز التحقق الخاص بك:</p>
+                    <div style='font-size:32px;font-weight:bold;letter-spacing:8px;color:#1d4ed8;text-align:center;padding:16px;background:#eff6ff;border-radius:4px'>
+                        {otp}
+                    </div>
+                    <p style='color:#6b7280;font-size:13px;margin-top:16px'>صالح لمدة 15 دقيقة. لا تشاركه مع أحد.</p>
+                </div>";
+
+            await _emailService.SendAsync(email, "رمز إعادة تعيين كلمة المرور", body);
+        }
+
+        public async Task ResetPasswordAsync(ResetPasswordRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+                throw new InvalidOperationException("Password must be at least 8 characters");
+
+            var user = await _userRepository.GetByEmailAsync(request.Email);
+
+            if (user == null || user.reset_otp == null || user.reset_otp_expires_at == null)
+                throw new InvalidOperationException("Invalid or expired OTP");
+
+            if (user.reset_otp != request.Otp)
+                throw new InvalidOperationException("Invalid OTP");
+
+            if (user.reset_otp_expires_at < DateTime.UtcNow)
+                throw new InvalidOperationException("OTP has expired");
+
+            user.password_hash = _passwordHasher.Hash(request.NewPassword);
+            user.reset_otp = null;
+            user.reset_otp_expires_at = null;
+            user.updated_at = DateTime.UtcNow;
+
+            await _unitOfWork.SaveChangesAsync();
         }
     }
 }

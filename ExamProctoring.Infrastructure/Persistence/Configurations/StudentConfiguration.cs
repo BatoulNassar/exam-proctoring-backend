@@ -24,7 +24,8 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.Property(s => s.middle_name).IsRequired(false).HasMaxLength(50);
             builder.Property(s=>s.last_name).IsRequired().HasMaxLength(50);
             builder.Property(s=>s.university_number).IsRequired().HasMaxLength(20);
-            builder.Property(s=>s.face_id).IsRequired().HasMaxLength(500);
+            builder.Property(s => s.face_id).IsRequired(false).HasMaxLength(500);
+            builder.Property(s => s.photo_url).IsRequired().HasMaxLength(500);
 
             // Student desktop authentication state. Defaults keep existing and newly
             // imported students active with a clean counter.

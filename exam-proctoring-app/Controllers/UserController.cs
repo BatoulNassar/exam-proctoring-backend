@@ -1,4 +1,5 @@
 using ExamProctoring.API.Common;
+using ExamProctoring.Application.Common.DTOs;
 using ExamProctoring.Application.Features.Users.DTOs;
 using ExamProctoring.Application.Features.Users.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -36,7 +37,7 @@ namespace ExamProctoring.API.Controllers
         public async Task<IActionResult> GetAdminsWithPermissions([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _userService.GetAllAdminsWithPermissionsAsync(page, pageSize);
-            return Ok(ApiResponse<IEnumerable<UserResponseDto>>.Ok(result, "Admins with permissions retrieved successfully"));
+            return Ok(ApiResponse<PagedResult<UserResponseDto>>.Ok(result, $"Retrieved {result.TotalCount} admins"));
         }
 
         [Authorize(Roles = "SuperAdmin")]

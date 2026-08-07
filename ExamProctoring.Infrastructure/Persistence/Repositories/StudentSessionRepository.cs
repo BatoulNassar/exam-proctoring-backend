@@ -1,5 +1,6 @@
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.Eligibility.DTOs;
+using ExamProctoring.Domain.Entities;
 using ExamProctoring.Domain.Enums;
 using ExamProctoring.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,37 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         public StudentSessionRepository(AppDbContext context)
         {
             _context = context;
+        }
+
+        public async Task<StudentSession?> GetByIdAsync(int studentSessionId)
+        {
+            return await _context.StudentSessions
+                .Include(ss => ss.ExamSession)
+                // The student is needed by the alert payload pushed over SignalR;
+                // without it the live feed shows "N/A" instead of a name.
+                .Include(ss => ss.Student)
+                .FirstOrDefaultAsync(ss => ss.id == studentSessionId);
+        }
+
+        public Task UpdateAsync(StudentSession studentSession)
+        {
+            _context.StudentSessions.Update(studentSession);
+            return Task.CompletedTask;
+        }
+
+        public async Task AddWarningMessageAsync(WarningMessage message)
+        {
+            await _context.WarningMessages.AddAsync(message);
+        }
+
+        public async Task AddMonitoringEventAsync(MonitoringEvent monitoringEvent)
+        {
+            await _context.MonitoringEvents.AddAsync(monitoringEvent);
+        }
+
+        public async Task AddAlertAsync(AlertEvent alert)
+        {
+            await _context.AlertEvents.AddAsync(alert);
         }
 
         public async Task<List<StudentAssignmentView>> GetVisibleAssignmentsAsync(int studentId)

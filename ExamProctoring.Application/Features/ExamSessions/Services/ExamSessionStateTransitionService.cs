@@ -7,7 +7,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
     public interface IExamSessionStateTransitionService
     {
         Task<(bool Success, string Message)> PublishSessionAsync(int sessionId, int actorId);
-        Task<(bool Success, string Message)> ExtendSessionAsync(int sessionId, int extendByMinutes, int actorId);
+        Task<(bool Success, string Message)> ExtendSessionAsync(int sessionId, int? extendByMinutes, int actorId);
         Task CheckAndUpdateSessionStatesAsync();
     }
 
@@ -15,13 +15,16 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
     {
         private readonly IExamSessionRepository _examSessionRepository;
         private readonly IAuditLogRepository _auditLogRepository;
+        private readonly ISystemSettingsRepository _settingsRepository;
 
         public ExamSessionStateTransitionService(
             IExamSessionRepository examSessionRepository,
-            IAuditLogRepository auditLogRepository)
+            IAuditLogRepository auditLogRepository,
+            ISystemSettingsRepository settingsRepository)
         {
             _examSessionRepository = examSessionRepository;
             _auditLogRepository = auditLogRepository;
+            _settingsRepository = settingsRepository;
         }
 
         public async Task<(bool Success, string Message)> PublishSessionAsync(int sessionId, int actorId)
@@ -44,7 +47,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
             return (true, "Session published successfully");
         }
 
-        public async Task<(bool Success, string Message)> ExtendSessionAsync(int sessionId, int extendByMinutes, int actorId)
+        public async Task<(bool Success, string Message)> ExtendSessionAsync(int sessionId, int? extendByMinutes, int actorId)
         {
             var session = await _examSessionRepository.GetByIdAsync(sessionId);
             if (session == null)
@@ -53,12 +56,18 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
             if (session.status != ExamSessionStatus.ACTIVE)
                 return (false, "Can only extend ACTIVE sessions");
 
-            if (extendByMinutes <= 0 || extendByMinutes > 120)
+            if (!extendByMinutes.HasValue || extendByMinutes <= 0)
+            {
+                var settings = await _settingsRepository.GetAsync();
+                extendByMinutes = settings?.grace_period_minutes ?? 15;
+            }
+
+            if (extendByMinutes > 120)
                 return (false, "Extension must be between 1 and 120 minutes");
 
-            session.extended_by_minutes += extendByMinutes;
-            session.grace_period_minutes = extendByMinutes;
-            session.grace_period_ended_at = DateTime.UtcNow.AddMinutes(extendByMinutes);
+            session.extended_by_minutes += extendByMinutes.Value;
+            session.grace_period_minutes = extendByMinutes.Value;
+            session.grace_period_ended_at = DateTime.UtcNow.AddMinutes(extendByMinutes.Value);
             session.status = ExamSessionStatus.GRACE;
             session.updated_at = DateTime.UtcNow;
             session.updated_by = actorId;
@@ -144,7 +153,8 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
         {
             var sessionsToClose = await _examSessionRepository.GetByStatusAsync(
                 ExamSessionStatus.GRACE,
-                x => x.grace_period_ended_at.HasValue && now >= x.grace_period_ended_at);
+                x => (x.grace_period_ended_at.HasValue && now >= x.grace_period_ended_at) ||
+                     (!x.grace_period_ended_at.HasValue && now >= x.start_time.AddMinutes(x.duration_minutes)));
 
             foreach (var session in sessionsToClose)
             {

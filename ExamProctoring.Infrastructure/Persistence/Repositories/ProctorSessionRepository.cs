@@ -31,6 +31,15 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                 .SingleOrDefaultAsync(ps => ps.exam_session_id == examSessionId && ps.proctor_id == proctorId);
         }
 
+        public async Task<IReadOnlyList<int>> GetSessionIdsByProctorAsync(int proctorId)
+        {
+            return await _context.ProctorSessions
+                .Where(ps => ps.proctor_id == proctorId)
+                .Select(ps => ps.exam_session_id)
+                .Distinct()
+                .ToListAsync();
+        }
+
         public async Task AddAsync(ProctorSession proctorSession)
         {
             await _context.ProctorSessions.AddAsync(proctorSession);

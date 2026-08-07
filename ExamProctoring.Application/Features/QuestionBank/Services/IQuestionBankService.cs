@@ -10,5 +10,7 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
         Task<IEnumerable<QuestionBankDto>> GetAllQuestionBanksAsync();
 
         Task<(GetQuestionBankResult Result, QuestionBankDetailsDto? Data)> GetQuestionBankDetailsAsync(int id);
+
+        Task<DeleteQuestionBankResult> DeleteQuestionBankAsync(int id, int adminId);
     }
 }
