@@ -23,5 +23,10 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
         {
             _context.SystemSettings.Update(settings);
         }
+
+        public async Task AddAsync(SystemSettings settings)
+        {
+            await _context.SystemSettings.AddAsync(settings);
+        }
     }
 }
