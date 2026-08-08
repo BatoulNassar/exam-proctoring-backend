@@ -1,5 +1,6 @@
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.Eligibility.DTOs;
+using ExamProctoring.Domain.Common;
 using ExamProctoring.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using System;
@@ -159,11 +160,14 @@ namespace ExamProctoring.Application.Features.Eligibility.Services
             assignment.ExamSessionStatus == ExamSessionStatus.CLOSED
             || assignment.ExamSessionStatus == ExamSessionStatus.ARCHIVED;
 
+        /// Both boundaries defer to ExamSessionTiming so the attempt and eligibility features
+        /// cannot drift apart on the arithmetic. Values are unchanged from before the extraction.
         private static DateTime LoginWindowClosesAt(StudentAssignmentView assignment) =>
-            assignment.StartTime.AddMinutes(assignment.LoginWindowMinutes);
+            ExamSessionTiming.LoginWindowClosesAt(assignment.StartTime, assignment.LoginWindowMinutes);
 
         private static DateTime EndTime(StudentAssignmentView assignment) =>
-            assignment.StartTime.AddMinutes(assignment.DurationMinutes + assignment.ExtendedByMinutes);
+            ExamSessionTiming.CohortWorkEndsAt(
+                assignment.StartTime, assignment.DurationMinutes, assignment.ExtendedByMinutes);
 
         private EligibilityResult Resolved(
             int studentId,

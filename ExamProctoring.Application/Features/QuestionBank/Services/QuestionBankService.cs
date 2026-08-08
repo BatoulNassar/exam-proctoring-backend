@@ -1,4 +1,5 @@
 ﻿using ExamProctoring.Application.Common.Interfaces;
+using ExamProctoring.Application.Features.ExamAttempts;
 using ExamProctoring.Application.Features.QuestionBank.DTOs;
 using ExamProctoring.Domain.Entities;
 using ExamProctoring.Domain.Enums;
@@ -57,7 +58,11 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
                         if (!int.TryParse(marksStr, out var marks) || marks <= 0)
                             return (UploadQuestionBankResult.InvalidCsv, null);
 
-                        if (!Enum.TryParse<QuestionType>(typeStr, true, out var type))
+                        // Accepts both the internal enum names and the student API vocabulary
+                        // (MCQ_SINGLE, MCQ_MULTI, TRUE_FALSE, SHORT_ANSWER, ESSAY), so an
+                        // author can use whichever spelling they know. Replaces a bare
+                        // Enum.TryParse, which could not express MCQ_MULTI or ESSAY.
+                        if (!QuestionTypeMap.TryFromContract(typeStr, out var type))
                             return (UploadQuestionBankResult.InvalidCsv, null);
 
                         var question = new Question
@@ -174,9 +179,9 @@ namespace ExamProctoring.Application.Features.QuestionBank.Services
                 {
                     Id = q.id,
                     Type = q.type.ToString(),
-                    GradingMode = q.type == QuestionType.MultipleChoice || q.type == QuestionType.TrueFalse
-                        ? "Auto"
-                        : "Manual",
+                    // Option-based types are mechanically gradable; the free-text ones are not.
+                    // Display label only - no grading is implemented in this phase.
+                    GradingMode = QuestionTypeMap.UsesOptions(q.type) ? "Auto" : "Manual",
                     QuestionText = q.question_text,
                     Marks = q.marks,
                     OptionA = q.option_a,

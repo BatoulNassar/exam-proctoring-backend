@@ -2,6 +2,7 @@
 using ExamProctoring.Application.Features.Alerts;
 using ExamProctoring.Application.Features.Alerts.DTOs;
 using ExamProctoring.Application.Features.AuditLogs.Services;
+using ExamProctoring.Application.Features.ExamAttempts.Services;
 using ExamProctoring.Domain.Entities;
 using ExamProctoring.Domain.Enums;
 using System;
@@ -21,6 +22,7 @@ namespace ExamProctoring.Application.Features.Alerts.Services
         private readonly IAuditLogService _auditLog;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMonitoringNotifier _notifier;
+        private readonly IAttemptFinalisationService _finalisationService;
 
         public AlertService(
             IAlertEventRepository alertRepository,
@@ -30,8 +32,10 @@ namespace ExamProctoring.Application.Features.Alerts.Services
             ISystemSettingsRepository settingsRepository,
             IAuditLogService auditLog,
             IUnitOfWork unitOfWork,
-            IMonitoringNotifier notifier)
+            IMonitoringNotifier notifier,
+            IAttemptFinalisationService finalisationService)
         {
+            _finalisationService = finalisationService;
             _alertRepository = alertRepository;
             _actionRepository = actionRepository;
             _proctorSessionRepository = proctorSessionRepository;
@@ -50,14 +54,30 @@ namespace ExamProctoring.Application.Features.Alerts.Services
         {
             var studentSession = await _studentSessionRepository.GetByIdAsync(studentSessionId);
 
-            if (studentSession == null || studentSession.status == StudentSessionStatus.Terminated)
+            if (studentSession == null || studentSession.finalised_at.HasValue)
                 return false;
 
-            studentSession.status = StudentSessionStatus.Terminated;
-            studentSession.updated_at = DateTime.UtcNow;
-            studentSession.updated_by = actorId;
-            await _studentSessionRepository.UpdateAsync(studentSession);
+            // Routed through the one shared finalisation path rather than setting the status here,
+            // so a terminated attempt receives the same frozen result as a submitted one: an
+            // answered count, a receipt and a finalised_at. Before this, a terminated attempt had
+            // a status but no receipt, and a later student Submit had nothing frozen to return.
+            var outcome = await _finalisationService.FinaliseAsync(new AttemptFinalisationContext
+            {
+                StudentSessionId = studentSessionId,
+                ExamSessionId = studentSession.exam_session_id,
+                CourseTag = studentSession.ExamSession?.course_tag ?? string.Empty,
+                QuestionCount = studentSession.question_count ?? 0,
+                Reason = AttemptFinalisationReason.ProctorTerminated,
+                IsAlreadyTerminated = studentSession.status == StudentSessionStatus.Terminated,
+                ActorId = actorId,
+                ActorType = "Admin",
+            });
 
+            if (outcome.Status != AttemptFinalisationStatus.Finalised)
+                return false;
+
+            // The shared path writes its own audit row inside the finalisation transaction; this
+            // one records the proctor-facing reason, which that generic row does not carry.
             await _auditLog.LogAsync(
                 studentSession.exam_session_id, actorId, "Admin", "StudentSessionTerminated",
                 studentSessionId, "StudentSession", reason);

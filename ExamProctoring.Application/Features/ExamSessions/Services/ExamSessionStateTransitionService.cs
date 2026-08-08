@@ -135,9 +135,15 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
 
         private async Task TransitionToClosedAsync(DateTime now)
         {
+            // The boundary includes login_window_minutes because a student may legally begin at
+            // the very end of the login window and still receives the full duration. Closing at
+            // start_time + duration would cut that student's personal deadline short.
+            // Canonical definition: ExamSessionTiming.LatestPersonalEndsAt - restated inline
+            // because EF Core cannot translate a method call inside a query predicate.
             var sessionsToClose = await _examSessionRepository.GetByStatusAsync(
                 ExamSessionStatus.ACTIVE,
-                x => now >= x.start_time.AddMinutes(x.duration_minutes) && x.extended_by_minutes == 0);
+                x => now >= x.start_time.AddMinutes(x.login_window_minutes + x.duration_minutes)
+                     && x.extended_by_minutes == 0);
 
             foreach (var session in sessionsToClose)
             {
@@ -151,10 +157,14 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
 
         private async Task TransitionFromGraceToClosedAsync(DateTime now)
         {
+            // Same login-window allowance as TransitionToClosedAsync for the fallback branch,
+            // so a session with no explicit grace end cannot close before the latest legally
+            // started attempt could finish.
             var sessionsToClose = await _examSessionRepository.GetByStatusAsync(
                 ExamSessionStatus.GRACE,
                 x => (x.grace_period_ended_at.HasValue && now >= x.grace_period_ended_at) ||
-                     (!x.grace_period_ended_at.HasValue && now >= x.start_time.AddMinutes(x.duration_minutes)));
+                     (!x.grace_period_ended_at.HasValue
+                      && now >= x.start_time.AddMinutes(x.login_window_minutes + x.duration_minutes)));
 
             foreach (var session in sessionsToClose)
             {

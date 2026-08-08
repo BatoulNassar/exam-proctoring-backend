@@ -40,6 +40,9 @@ namespace ExamProctoring.Infrastructure.Data
         public DbSet<StudentLoginAttempt> StudentLoginAttempts { get; set; }
         public DbSet<DeviceCheck> DeviceChecks { get; set; }
         public DbSet<DeviceCheckRequirement> DeviceCheckRequirements { get; set; }
+        public DbSet<AttemptQuestion> AttemptQuestions { get; set; }
+        public DbSet<AttemptQuestionOption> AttemptQuestionOptions { get; set; }
+        public DbSet<IdempotencyRecord> IdempotencyRecords { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

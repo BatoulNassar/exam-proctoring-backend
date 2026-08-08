@@ -1,3 +1,4 @@
+using ExamProctoring.Application.Features.ExamAttempts.Services;
 using ExamProctoring.Application.Features.ExamSessions.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -32,6 +33,16 @@ namespace ExamProctoring.API.Services
 
                     await transitionService.CheckAndUpdateSessionStatesAsync();
                     _logger.LogInformation("Exam session states checked and updated at {time}", DateTime.UtcNow);
+
+                    // Janitor for attempts nobody submitted. Deliberately runs on the same tick as
+                    // the session transitions rather than in its own hosted service, and is NOT the
+                    // deadline authority: PUT Answer checks ends_at on every request, so this
+                    // interval can never let a late answer through.
+                    var expiryService = scope.ServiceProvider.GetRequiredService<IAttemptExpiryService>();
+                    var finalised = await expiryService.FinaliseExpiredAttemptsAsync();
+
+                    if (finalised > 0)
+                        _logger.LogInformation("Auto-finalised {Count} expired attempt(s).", finalised);
                 }
                 catch (Exception ex)
                 {

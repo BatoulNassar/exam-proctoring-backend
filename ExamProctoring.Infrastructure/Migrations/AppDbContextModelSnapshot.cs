@@ -89,6 +89,137 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.ToTable("AlertEvent", (string)null);
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.AttemptQuestion", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("marks")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("public_id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("question_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("stem")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("student_session_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("question_id");
+
+                    b.HasIndex("student_session_id", "ordinal");
+
+                    b.HasIndex("student_session_id", "public_id")
+                        .IsUnique();
+
+                    b.HasIndex("student_session_id", "question_id")
+                        .IsUnique();
+
+                    b.ToTable("AttemptQuestion", (string)null);
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.AttemptQuestionOption", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<int>("attempt_question_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("label")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("public_id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("source_slot")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("attempt_question_id", "ordinal");
+
+                    b.HasIndex("attempt_question_id", "public_id")
+                        .IsUnique();
+
+                    b.ToTable("AttemptQuestionOption", (string)null);
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.AuditLog", b =>
                 {
                     b.Property<int>("id")
@@ -551,6 +682,78 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.HasIndex("exam_session_id");
 
                     b.ToTable("GradingExport", (string)null);
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("created_at_utc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<string>("endpoint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("idempotency_key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<byte[]>("request_hash")
+                        .IsRequired()
+                        .HasColumnType("varbinary(32)");
+
+                    b.Property<string>("resource_key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("response_body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("response_status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("student_session_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("student_session_id", "idempotency_key")
+                        .IsUnique();
+
+                    b.ToTable("IdempotencyRecord", (string)null);
                 });
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.MonitoringEvent", b =>
@@ -1171,6 +1374,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
 
+                    b.Property<DateTime?>("client_answered_at")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("created_at")
                         .HasColumnType("datetime2");
 
@@ -1182,6 +1388,11 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.Property<int?>("deleted_by")
                         .HasColumnType("int");
+
+                    b.Property<int>("duration_ms")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<bool>("is_deleted")
                         .ValueGeneratedOnAdd()
@@ -1277,6 +1488,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
 
+                    b.Property<int?>("answered_count")
+                        .HasColumnType("int");
+
                     b.Property<int?>("awarded_marks")
                         .HasColumnType("int");
 
@@ -1292,6 +1506,13 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Property<int?>("deleted_by")
                         .HasColumnType("int");
 
+                    b.Property<string>("device_id")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)");
+
+                    b.Property<DateTime?>("ends_at")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("exam_session_id")
                         .HasColumnType("int");
 
@@ -1300,6 +1521,13 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.Property<int>("failed_auth_attempts")
                         .HasColumnType("int");
+
+                    b.Property<string>("finalisation_reason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("finalised_at")
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("is_deleted")
                         .ValueGeneratedOnAdd()
@@ -1310,6 +1538,21 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<DateTime?>("login_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("public_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<int?>("question_count")
+                        .HasColumnType("int");
+
+                    b.Property<string>("receipt_code")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("started_at")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("status")
@@ -1334,10 +1577,19 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.HasKey("id");
 
+                    b.HasIndex("public_id")
+                        .IsUnique();
+
+                    b.HasIndex("receipt_code")
+                        .IsUnique()
+                        .HasFilter("[receipt_code] IS NOT NULL");
+
                     b.HasIndex("student_id");
 
                     b.HasIndex("exam_session_id", "student_id")
                         .IsUnique();
+
+                    b.HasIndex("status", "ends_at");
 
                     b.ToTable("StudentSession", (string)null);
                 });
@@ -1606,6 +1858,36 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("StudentSession");
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.AttemptQuestion", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.Question", "Question")
+                        .WithMany()
+                        .HasForeignKey("question_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ExamProctoring.Domain.Entities.StudentSession", "StudentSession")
+                        .WithMany("AttemptQuestions")
+                        .HasForeignKey("student_session_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+
+                    b.Navigation("StudentSession");
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.AttemptQuestionOption", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.AttemptQuestion", "AttemptQuestion")
+                        .WithMany("Options")
+                        .HasForeignKey("attempt_question_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AttemptQuestion");
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.AuditLog", b =>
                 {
                     b.HasOne("ExamProctoring.Domain.Entities.ExamSession", "ExamSession")
@@ -1697,6 +1979,15 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ExamSession");
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.StudentSession", null)
+                        .WithMany()
+                        .HasForeignKey("student_session_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.MonitoringEvent", b =>
@@ -1881,6 +2172,11 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("ProctorActions");
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.AttemptQuestion", b =>
+                {
+                    b.Navigation("Options");
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.DeviceCheck", b =>
                 {
                     b.Navigation("Requirements");
@@ -1943,6 +2239,8 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("Alerts");
 
                     b.Navigation("Answers");
+
+                    b.Navigation("AttemptQuestions");
 
                     b.Navigation("AutoScores");
 

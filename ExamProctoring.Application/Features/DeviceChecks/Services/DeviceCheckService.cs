@@ -1,3 +1,4 @@
+using ExamProctoring.Application.Common;
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.DeviceChecks.DTOs;
 using ExamProctoring.Application.Features.DeviceChecks.Validators;
@@ -105,25 +106,10 @@ namespace ExamProctoring.Application.Features.DeviceChecks.Services
             return DeviceCheckResult.Accepted;
         }
 
-        /// Both values must be valid UUIDs and must match once normalized to the canonical
-        /// "D" form. The stored value always comes from the signed token claim, never from
-        /// the request body.
-        private static bool TryResolveDeviceId(string? requestDeviceId, string? deviceIdClaim, out string deviceId)
-        {
-            deviceId = string.Empty;
-
-            if (!Guid.TryParse(deviceIdClaim, out var claimDevice))
-                return false;
-
-            if (!Guid.TryParse(requestDeviceId, out var bodyDevice))
-                return false;
-
-            if (claimDevice != bodyDevice)
-                return false;
-
-            deviceId = claimDevice.ToString("D");
-            return true;
-        }
+        /// The rule now lives in <see cref="DeviceIdentifier.TryResolve"/> so Start Exam and
+        /// this endpoint cannot drift apart on how a device is validated.
+        private static bool TryResolveDeviceId(string? requestDeviceId, string? deviceIdClaim, out string deviceId) =>
+            DeviceIdentifier.TryResolve(requestDeviceId, deviceIdClaim, out deviceId);
 
         private static DeviceCheckStatus MapStatus(string status) => status switch
         {

@@ -11,6 +11,7 @@ using ExamProctoring.Application.Features.Auth.Validators;
 using ExamProctoring.Application.Features.Dashboard.Services;
 using ExamProctoring.Application.Features.DeviceChecks.Services;
 using ExamProctoring.Application.Features.Eligibility.Services;
+using ExamProctoring.Application.Features.ExamAttempts.Services;
 using ExamProctoring.Application.Features.ExamSessions.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
 using ExamProctoring.API.Services;
@@ -72,7 +73,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("LocalConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("ServerConnection")));
 
 // ���������
 builder.Services.AddOptions<JwtSettings>()
@@ -95,6 +96,18 @@ builder.Services.AddOptions<StudentApplicationSettings>()
         "StudentApplication:MinimumSupportedVersion is required and must look like 1.0.0 or 1.0.0+1.")
     .ValidateOnStart();
 
+// Temporary home for the three monitoring thresholds that have no database column yet.
+// See MonitoringPolicySettings; these move once the realtime monitoring feature lands.
+builder.Services.AddOptions<MonitoringPolicySettings>()
+    .Bind(builder.Configuration.GetSection("MonitoringPolicy"))
+    .Validate(s => s.AudioNoiseThresholdDb < 0,
+        "MonitoringPolicy:AudioNoiseThresholdDb must be negative, for example -25.")
+    .Validate(s => s.HeartbeatIntervalSeconds > 0,
+        "MonitoringPolicy:HeartbeatIntervalSeconds must be greater than 0.")
+    .Validate(s => s.ConnectivityLostThresholdSeconds > 0,
+        "MonitoringPolicy:ConnectivityLostThresholdSeconds must be greater than 0.")
+    .ValidateOnStart();
+
 // ===== Repositories =====
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
@@ -112,6 +125,10 @@ builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 builder.Services.AddScoped<IStudentLoginAttemptRepository, StudentLoginAttemptRepository>();
 builder.Services.AddScoped<IStudentSessionRepository, StudentSessionRepository>();
 builder.Services.AddScoped<IDeviceCheckRepository, DeviceCheckRepository>();
+builder.Services.AddScoped<IAttemptRepository, AttemptRepository>();
+builder.Services.AddScoped<IStudentAnswerRepository, StudentAnswerRepository>();
+builder.Services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
+builder.Services.AddScoped<IAttemptFinalisationRepository, AttemptFinalisationRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
 builder.Services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
@@ -145,6 +162,16 @@ builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IStudentAuthService, StudentAuthService>();
 builder.Services.AddScoped<IEligibilityService, EligibilityService>();
 builder.Services.AddScoped<IDeviceCheckService, DeviceCheckService>();
+builder.Services.AddScoped<IExamAttemptService, ExamAttemptService>();
+
+// The single terminal-transition path shared by student submit, automatic expiry and proctor
+// termination. Registered before AlertService so the dependency direction stays obvious.
+builder.Services.AddScoped<IAttemptFinalisationService, AttemptFinalisationService>();
+builder.Services.AddScoped<IAttemptExpiryService, AttemptExpiryService>();
+
+// TEMPORARY identity gate: reads the existing StudentSession verification state. The Identity
+// Verification feature replaces this registration without touching any consumer.
+builder.Services.AddScoped<IIdentityGate, StudentSessionIdentityGate>();
 
 // Background services
 builder.Services.AddScoped<IQuestionBankStateTransitionService, QuestionBankStateTransitionService>();
