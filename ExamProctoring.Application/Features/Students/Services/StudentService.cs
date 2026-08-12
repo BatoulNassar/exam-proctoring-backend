@@ -4,6 +4,7 @@ using ExamProctoring.Application.Features.Students.DTOs;
 using ExamProctoring.Domain.Entities;
 using System.IO.Compression;
 using System.Text;
+using System.Net.Mail;
 
 namespace ExamProctoring.Application.Features.Students.Services
 {
@@ -145,6 +146,10 @@ namespace ExamProctoring.Application.Features.Students.Services
                 if (string.IsNullOrEmpty(universityNumber) || string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
                     return Fail(lineNumber, universityNumber, "university_number, first_name, and last_name are required");
 
+                // Validate email format if provided
+                if (!string.IsNullOrEmpty(email) && !IsValidEmail(email))
+                    return Fail(lineNumber, universityNumber, $"Invalid email format: {email}");
+
                 if (!photos.TryGetValue(universityNumber, out var photo))
                     return Fail(lineNumber, universityNumber, $"Photo not found in ZIP (expected: {universityNumber}.jpg/png)");
 
@@ -229,6 +234,24 @@ namespace ExamProctoring.Application.Features.Students.Services
 
         private static StudentImportResult Fail(int lineNumber, string? universityNumber, string reason) =>
             new() { IsSuccess = false, UniversityNumber = universityNumber ?? string.Empty, Message = $"Line {lineNumber}: {reason}" };
+
+        /// <summary>
+        /// Validates email format using .NET's built-in MailAddress class.
+        /// Returns false for invalid emails or those not matching basic domain rules.
+        /// </summary>
+        private static bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new MailAddress(email);
+                // Ensure the address parses to itself (catches edge cases like "a..b@example.com")
+                return addr.Address == email.Trim().ToLower();
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         private string[] ParseCsvLine(string line)
         {
