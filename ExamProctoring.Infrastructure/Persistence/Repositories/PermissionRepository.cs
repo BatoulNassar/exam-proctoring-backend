@@ -28,5 +28,12 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             .Where(p => permissionNames.Contains(p.name))
             .ToListAsync();
         }
+
+        public async Task<IList<Permission>> GetAllAsync()
+        {
+            return await _context.Permissions
+                .OrderBy(p => p.id)
+                .ToListAsync();
+        }
     }
 }

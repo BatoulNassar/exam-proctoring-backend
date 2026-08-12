@@ -23,6 +23,17 @@ namespace ExamProctoring.API.Controllers
             return Ok(ApiResponse<IEnumerable<RoleDto>>.Ok(result, "Roles with permissions retrieved successfully"));
         }
 
+        /// <summary>
+        /// Every permission with its id. Roles list their permissions by name, but
+        /// the update below takes ids — this is what maps one to the other.
+        /// </summary>
+        [HttpGet("permissions")]
+        public async Task<IActionResult> GetPermissions()
+        {
+            var result = await _roleService.GetAllPermissionsAsync();
+            return Ok(ApiResponse<IEnumerable<PermissionDto>>.Ok(result, "Permissions retrieved successfully"));
+        }
+
         [HttpGet("{roleId}/permissions")]
         public async Task<IActionResult> GetRolePermissions(int roleId)
         {

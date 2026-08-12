@@ -11,16 +11,31 @@ namespace ExamProctoring.Application.Features.Roles.Services
     {
         private readonly IRoleRepository _roleRepository;
         private readonly IPermissionRoleRepository _permissionRoleRepository;
+        private readonly IPermissionRepository _permissionRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public RoleService(
             IRoleRepository roleRepository,
             IPermissionRoleRepository permissionRoleRepository,
+            IPermissionRepository permissionRepository,
             IUnitOfWork unitOfWork)
         {
             _roleRepository = roleRepository;
             _permissionRoleRepository = permissionRoleRepository;
+            _permissionRepository = permissionRepository;
             _unitOfWork = unitOfWork;
+        }
+
+        public async Task<IEnumerable<PermissionDto>> GetAllPermissionsAsync()
+        {
+            var permissions = await _permissionRepository.GetAllAsync();
+
+            return permissions.Select(p => new PermissionDto
+            {
+                Id = p.id,
+                Name = p.name,
+                Description = p.description ?? string.Empty
+            });
         }
 
         public async Task<IEnumerable<RoleDto>> GetAllRolesWithPermissionsAsync()

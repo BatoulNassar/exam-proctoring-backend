@@ -167,12 +167,27 @@ namespace ExamProctoring.Infrastructure.Seeders
         /// <returns>Names of the permissions this run created, empty if none.</returns>
         private async Task<HashSet<string>> SeedPermissionsAsync()
         {
-            var existing = await _context.Permissions
-                .Select(p => p.name)
-                .ToListAsync();
+            var existing = await _context.Permissions.ToListAsync();
+            var existingByName = existing.ToDictionary(p => p.name);
+
+            // Descriptions are owned by the code, so they are kept in step rather than
+            // written once. Databases seeded by an earlier version carry placeholder
+            // text like "Permission to CreateExamSession", which is useless on the
+            // roles screen. Grants are data and are never touched here.
+            var changed = false;
+            foreach (var entry in Catalogue)
+            {
+                if (existingByName.TryGetValue(entry.Name, out var permission)
+                    && permission.description != entry.Description)
+                {
+                    permission.description = entry.Description;
+                    permission.updated_at = DateTime.UtcNow;
+                    changed = true;
+                }
+            }
 
             var missing = Catalogue
-                .Where(p => !existing.Contains(p.Name))
+                .Where(p => !existingByName.ContainsKey(p.Name))
                 .Select(p => new Permission
                 {
                     name = p.Name,
@@ -181,10 +196,11 @@ namespace ExamProctoring.Infrastructure.Seeders
                 })
                 .ToList();
 
-            if (missing.Count == 0) return new HashSet<string>();
+            if (missing.Count > 0)
+                await _context.Permissions.AddRangeAsync(missing);
 
-            await _context.Permissions.AddRangeAsync(missing);
-            await _context.SaveChangesAsync();
+            if (changed || missing.Count > 0)
+                await _context.SaveChangesAsync();
 
             return missing.Select(p => p.name).ToHashSet();
         }
