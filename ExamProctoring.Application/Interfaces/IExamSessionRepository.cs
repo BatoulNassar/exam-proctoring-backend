@@ -34,5 +34,10 @@ namespace ExamProctoring.Application.Common.Interfaces
         Task<int> CountStudentsInExamAsync();
         Task<IEnumerable<StudentSession>> GetStudentSessionsWithAlertsAsync(int examSessionId);
         Task<IEnumerable<StudentSession>> GetStudentSessionsWithTimeConflictAsync(IEnumerable<int> studentIds, DateTime startTime, DateTime endTime);
+
+        /// <summary>
+        /// Paginated sessions created by an admin, with key metrics.
+        /// </summary>
+        Task<(IReadOnlyList<dynamic> Sessions, int TotalCount)> GetAdminSessionsPagedAsync(int adminId, int page, int pageSize);
     }
 }

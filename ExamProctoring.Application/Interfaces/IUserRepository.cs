@@ -25,5 +25,10 @@ namespace ExamProctoring.Application.Common.Interfaces
         Task<bool> EmailExistsAsync(string email);
         Task<User?> GetByEmailAsync(string email);
         Task DeleteAsync(User user);
+
+        /// <summary>
+        /// Paginated list of all proctors with their session and alert counts.
+        /// </summary>
+        Task<(IReadOnlyList<dynamic> Proctors, int TotalCount)> GetAllProctorsPagedAsync(int page, int pageSize);
     }
 }

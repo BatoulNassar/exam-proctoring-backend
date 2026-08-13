@@ -27,8 +27,16 @@ namespace ExamProctoring.Application.Features.Dashboard.Services
         }
 
         // adminId == null means "no owner filter": only a SuperAdmin gets that.
-        // Session-derived numbers below all carry the scope; the question-bank and
-        // student rosters are shared university-wide and stay unscoped.
+        //
+        // Sessions are ownership, alerts are shared responsibility. Session counts
+        // carry the owner scope so an admin sees the work they created; alert counts
+        // deliberately do not, because an admin may be proctoring someone else's
+        // session and must see every alert. This also keeps these cards agreeing with
+        // /api/alerts, which has always been unrestricted for admins — when the two
+        // disagreed, the same "Open Alerts" label showed two different numbers.
+        //
+        // The question-bank and student rosters are shared university-wide and stay
+        // unscoped as well.
 
         public async Task<DashboardStatsDto> GetStatsAsync(int? adminId)
         {
@@ -36,7 +44,7 @@ namespace ExamProctoring.Application.Features.Dashboard.Services
             {
                 ActiveSessions = await _dashboardRepository.CountActiveSessionsAsync(adminId),
                 StudentsInExam = await _dashboardRepository.CountStudentsInExamAsync(adminId),
-                OpenAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Open, null, adminId),
+                OpenAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Open, null),
                 QuestionBanks = await _questionBankRepository.CountAsync(),
                 AdminUsers = await _userRepository.CountAdminsAsync(),
             };
@@ -55,17 +63,20 @@ namespace ExamProctoring.Application.Features.Dashboard.Services
                 ActiveSessions = await _dashboardRepository.CountActiveSessionsAsync(adminId),
                 RegisteredStudents = await _dashboardRepository.CountRegisteredStudentsAsync(),
                 QuestionBanks = await _questionBankRepository.CountAsync(),
-                OpenAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Open, null, adminId),
-                CriticalOpenAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Open, AlertSeverity.Critical, adminId),
-                EscalatedAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Escalated, null, adminId),
+                // Unscoped on purpose — see the note above the class's first method.
+                OpenAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Open, null),
+                CriticalOpenAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Open, AlertSeverity.Critical),
+                EscalatedAlerts = await _dashboardRepository.CountAlertsByStatusAndSeverityAsync(AlertStatus.Escalated, null),
                 ReadyToExport = exportCounts.Pending
             };
         }
 
-        public async Task<IReadOnlyList<AlertTypeCountDto>> GetAlertCountsByTypeAsync(int days, int? adminId)
+        public async Task<IReadOnlyList<AlertTypeCountDto>> GetAlertCountsByTypeAsync(int days)
         {
             var from = DateTime.UtcNow.Date.AddDays(-(ClampDays(days) - 1));
-            var counts = await _dashboardRepository.GetAlertCountsByTypeAsync(from, null, adminId);
+            // Unscoped for the same reason the alert cards are: this chart and the
+            // Alerts page must describe the same set of alerts.
+            var counts = await _dashboardRepository.GetAlertCountsByTypeAsync(from);
 
             // Driven by the catalog, not by what the database happens to contain, so
             // a type with no alerts still shows as a zero bar instead of vanishing.

@@ -125,5 +125,29 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
             _context.Users.Update(user);
             await _context.SaveChangesAsync();
         }
+
+        public async Task<(IReadOnlyList<dynamic> Proctors, int TotalCount)> GetAllProctorsPagedAsync(int page, int pageSize)
+        {
+            var totalCount = await _context.Users
+                .CountAsync(u => u.UserRoles.Any(ur => ur.Role.name == "Proctor"));
+
+            var proctors = await _context.Users
+                .Where(u => u.UserRoles.Any(ur => ur.Role.name == "Proctor"))
+                .OrderBy(u => u.full_name)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new
+                {
+                    ProctorId = u.id,
+                    u.full_name,
+                    u.email,
+                    u.phone_number,
+                    AssignedSessionsCount = u.ProctorSessions.Count(),
+                    ActiveSessionsCount = u.ProctorSessions.Count(ps => ps.ExamSession.status == Domain.Enums.ExamSessionStatus.ACTIVE || ps.ExamSession.status == Domain.Enums.ExamSessionStatus.GRACE)
+                })
+                .ToListAsync();
+
+            return (proctors.Cast<dynamic>().ToList(), totalCount);
+        }
     }
 }

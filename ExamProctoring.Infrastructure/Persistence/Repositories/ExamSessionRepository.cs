@@ -247,5 +247,33 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                 .OrderBy(ss => ss.login_at)
                 .ToListAsync();
         }
+
+        public async Task<(IReadOnlyList<dynamic> Sessions, int TotalCount)> GetAdminSessionsPagedAsync(int adminId, int page, int pageSize)
+        {
+            var totalCount = await _context.ExamSessions
+                .Where(e => e.created_by_admin_id == adminId)
+                .CountAsync();
+
+            var sessions = await _context.ExamSessions
+                .Where(e => e.created_by_admin_id == adminId)
+                .OrderByDescending(e => e.start_time)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(e => new
+                {
+                    e.id,
+                    e.title,
+                    e.course_tag,
+                    Status = e.status.ToString(),
+                    e.start_time,
+                    e.duration_minutes,
+                    TotalEnrolledStudents = e.StudentSessions.Count(s => s.status != Domain.Enums.StudentSessionStatus.NotStarted),
+                    AssignedProctors = e.ProctorSessions.Count(),
+                    OpenAlerts = e.StudentSessions.SelectMany(ss => ss.Alerts).Count(a => a.status == Domain.Enums.AlertStatus.Open)
+                })
+                .ToListAsync();
+
+            return (sessions.Cast<dynamic>().ToList(), totalCount);
+        }
     }
 }

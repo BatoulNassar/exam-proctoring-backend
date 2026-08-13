@@ -14,6 +14,12 @@ namespace ExamProctoring.Application.Common.Interfaces
         /// visibility boundary for everything a proctor is allowed to see.
         /// </summary>
         Task<IReadOnlyList<int>> GetSessionIdsByProctorAsync(int proctorId);
+
+        /// <summary>
+        /// Paginated sessions assigned to a proctor, with key metrics.
+        /// </summary>
+        Task<(IReadOnlyList<dynamic> Sessions, int TotalCount)> GetProctorSessionsPagedAsync(int proctorId, int page, int pageSize);
+
         Task AddAsync(ProctorSession proctorSession);
         Task DeleteAsync(ProctorSession proctorSession);
     }

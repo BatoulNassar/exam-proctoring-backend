@@ -66,14 +66,13 @@ namespace ExamProctoring.API.Controllers
 
         /// <summary>
         /// Alert counts per alert type. Every known type is returned, zero included.
+        /// Not narrowed per admin: alerts are shared across admins, so this chart
+        /// covers the same alerts the Alerts page lists.
         /// </summary>
         [HttpGet("alert-counts-by-type")]
         public async Task<IActionResult> GetAlertCountsByType([FromQuery] int days = 7)
         {
-            if (HasUnresolvableScope())
-                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
-
-            var counts = await _dashboardService.GetAlertCountsByTypeAsync(days, GetAdminScopeId());
+            var counts = await _dashboardService.GetAlertCountsByTypeAsync(days);
             return Ok(ApiResponse<IReadOnlyList<AlertTypeCountDto>>.Ok(counts, "Alert counts by type retrieved successfully"));
         }
 

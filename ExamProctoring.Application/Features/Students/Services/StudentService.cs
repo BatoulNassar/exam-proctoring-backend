@@ -55,6 +55,9 @@ namespace ExamProctoring.Application.Features.Students.Services
         // The ZIP must contain:
         //   - One .csv file with header: university_number,first_name,middle_name,last_name,email,phone_number
         //   - Photo files named {university_number}.jpg / .jpeg / .png
+        // A row is imported only if it is complete: university_number, first_name,
+        // last_name, a valid email, and a matching photo. Anything missing fails the
+        // row and is reported back, so a partial student never reaches the database.
         public async Task<ImportStudentsCsvResponse> ImportStudentsFromCsvAsync(Stream importZipStream, int adminId)
         {
             var response = new ImportStudentsCsvResponse();
@@ -133,8 +136,8 @@ namespace ExamProctoring.Application.Features.Students.Services
             {
                 var parts = ParseCsvLine(line);
 
-                if (parts.Length < 4)
-                    return Fail(lineNumber, null, "Insufficient columns. Expected: university_number,first_name,middle_name,last_name[,email,phone_number]");
+                if (parts.Length < 5)
+                    return Fail(lineNumber, null, "Insufficient columns. Expected: university_number,first_name,middle_name,last_name,email[,phone_number]");
 
                 var universityNumber = parts[0].Trim();
                 var firstName        = parts[1].Trim();
@@ -146,8 +149,13 @@ namespace ExamProctoring.Application.Features.Students.Services
                 if (string.IsNullOrEmpty(universityNumber) || string.IsNullOrEmpty(firstName) || string.IsNullOrEmpty(lastName))
                     return Fail(lineNumber, universityNumber, "university_number, first_name, and last_name are required");
 
-                // Validate email format if provided
-                if (!string.IsNullOrEmpty(email) && !IsValidEmail(email))
+                // Every student must arrive with a real address. Deriving one from the
+                // university number would look valid while going nowhere, so a row
+                // without an email is rejected rather than quietly patched.
+                if (string.IsNullOrEmpty(email))
+                    return Fail(lineNumber, universityNumber, "email is required");
+
+                if (!IsValidEmail(email))
                     return Fail(lineNumber, universityNumber, $"Invalid email format: {email}");
 
                 if (!photos.TryGetValue(universityNumber, out var photo))
@@ -170,7 +178,8 @@ namespace ExamProctoring.Application.Features.Students.Services
                     existing.middle_name = middleName;
                     existing.last_name   = lastName;
                     existing.photo_url   = photoUrl;
-                    if (!string.IsNullOrEmpty(email))       existing.email        = email;
+                    // email is guaranteed present and valid by the checks above.
+                    existing.email       = email;
                     if (!string.IsNullOrEmpty(phoneNumber)) existing.phone_number = phoneNumber;
                     existing.updated_at = DateTime.UtcNow;
                     existing.updated_by = adminId;
@@ -191,17 +200,13 @@ namespace ExamProctoring.Application.Features.Students.Services
                 }
                 else
                 {
-                    var resolvedEmail = string.IsNullOrEmpty(email)
-                        ? $"{universityNumber.Replace("-", "")}@student.vu.edu".ToLower()
-                        : email;
-
                     var student = new Student
                     {
                         university_number = universityNumber,
                         first_name        = firstName,
                         middle_name       = middleName,
                         last_name         = lastName,
-                        email             = resolvedEmail,
+                        email             = email,
                         phone_number      = phoneNumber,
                         user_name         = universityNumber,
                         password          = _passwordHasher.Hash(DefaultImportPassword),
@@ -218,7 +223,7 @@ namespace ExamProctoring.Application.Features.Students.Services
                         StudentId = student.id,
                         UniversityNumber = universityNumber,
                         FullName = fullName,
-                        Email = resolvedEmail,
+                        Email = email,
                         PhoneNumber = phoneNumber,
                         PhotoUrl = photoUrl,
                         IsSuccess = true,
@@ -236,22 +241,85 @@ namespace ExamProctoring.Application.Features.Students.Services
             new() { IsSuccess = false, UniversityNumber = universityNumber ?? string.Empty, Message = $"Line {lineNumber}: {reason}" };
 
         /// <summary>
-        /// Validates email format using .NET's built-in MailAddress class.
-        /// Returns false for invalid emails or those not matching basic domain rules.
+        /// Validates an address against the parts of RFC 5321/5322 that matter for a
+        /// student roster. MailAddress on its own is too permissive — it accepts
+        /// display-name forms like "Name &lt;a@b.com&gt;" and doubled dots — so the
+        /// structural rules are enforced explicitly on top of it.
         /// </summary>
         private static bool IsValidEmail(string email)
         {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            var trimmed = email.Trim();
+
+            // RFC 5321 size limit for a whole address.
+            if (trimmed.Length > 254)
+                return false;
+
+            string parsed;
             try
             {
-                var addr = new MailAddress(email);
-                // Ensure the address parses to itself (catches edge cases like "a..b@example.com")
-                return addr.Address == email.Trim().ToLower();
+                // Catches the obviously malformed: no @, empty local part, empty domain.
+                parsed = new MailAddress(trimmed).Address;
             }
             catch
             {
                 return false;
             }
+
+            // MailAddress parses "Name <a@b.com>" down to "a@b.com", so require the
+            // result to round-trip. Compared case-insensitively: addresses preserve
+            // case but do not depend on it, and rosters routinely capitalise names.
+            if (!string.Equals(parsed, trimmed, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var at = trimmed.LastIndexOf('@');
+            var localPart = trimmed.Substring(0, at);
+            var domain = trimmed.Substring(at + 1);
+
+            // RFC 5321 size limit for the local part.
+            if (localPart.Length > 64)
+                return false;
+
+            // A dot separates parts; it may not lead, trail, or repeat on either side.
+            if (!HasValidDotPlacement(localPart) || !HasValidDotPlacement(domain))
+                return false;
+
+            // Require a TLD. "student@vu" is legal on an intranet but is always a
+            // typo on a university roster.
+            if (!domain.Contains('.'))
+                return false;
+
+            foreach (var label in domain.Split('.'))
+            {
+                if (label.Length > 63)
+                    return false;
+
+                // A hyphen may join a label but may not start or end one.
+                if (label[0] == '-' || label[label.Length - 1] == '-')
+                    return false;
+
+                foreach (var c in label)
+                {
+                    if (!char.IsLetterOrDigit(c) && c != '-')
+                        return false;
+                }
+            }
+
+            return true;
         }
+
+        /// <summary>
+        /// True when <paramref name="part"/> is non-empty and its dots neither lead,
+        /// trail, nor repeat. Empty labels are impossible once this passes, so callers
+        /// splitting on '.' can index the result safely.
+        /// </summary>
+        private static bool HasValidDotPlacement(string part) =>
+            part.Length > 0
+            && part[0] != '.'
+            && part[part.Length - 1] != '.'
+            && !part.Contains("..");
 
         private string[] ParseCsvLine(string line)
         {

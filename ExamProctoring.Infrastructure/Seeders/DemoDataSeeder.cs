@@ -337,14 +337,17 @@ namespace ExamProctoring.Infrastructure.Seeders
 
             var defaultStudents = new List<Student>
     {
-        new Student { first_name = "Layla",  middle_name = "Sami",  last_name = "Mansour", university_number = "S-20211847", user_name = "layla.mansour", email = "layla.mansour@student.vu.edu",  phone_number = "0940000001", face_id = "face_layla_20211847" },
-        new Student { first_name = "Karim",  middle_name = "Adel",  last_name = "Nasir",   university_number = "S-20211285", user_name = "karim.nasir",   email = "karim.nasir@student.vu.edu",    phone_number = "0940000002", face_id = "face_karim_20211285" },
-        new Student { first_name = "Omar",   middle_name = "Fadi",  last_name = "Khalil",  university_number = "S-20210934", user_name = "omar.khalil",   email = "omar.khalil@student.vu.edu",    phone_number = "0940000003", face_id = "face_omar_20210934" },
-        new Student { first_name = "Nour",   middle_name = "Hani",  last_name = "Haddad",  university_number = "S-20212210", user_name = "nour.haddad",   email = "nour.haddad@student.vu.edu",    phone_number = "0940000004", face_id = "face_nour_20212210" },
-        new Student { first_name = "Yara",   middle_name = "Ziad",  last_name = "Saleh",   university_number = "S-20213321", user_name = "yara.saleh",    email = "yara.saleh@student.vu.edu",     phone_number = "0940000005", face_id = "face_yara_20213321" },
-        new Student { first_name = "Hadi",   middle_name = "Samer", last_name = "Aziz",    university_number = "S-20214412", user_name = "hadi.aziz",     email = "hadi.aziz@student.vu.edu",      phone_number = "0940000006", face_id = "face_hadi_20214412" },
-        new Student { first_name = "Rima",   middle_name = "Nabil", last_name = "Awad",    university_number = "S-20215503", user_name = "rima.awad",     email = "rima.awad@student.vu.edu",      phone_number = "0940000007", face_id = "face_rima_20215503" },
-        new Student { first_name = "Tarek",  middle_name = "Walid", last_name = "Salem",   university_number = "S-20216604", user_name = "tarek.salem",   email = "tarek.salem@student.vu.edu",    phone_number = "0940000008", face_id = "face_tarek_20216604" }
+        // photo_url is NOT NULL with no default on the entity, so every demo student
+        // needs one. Empty string matches what AddPhotoUrlRemovePhotoRaw backfills
+        // existing rows with: a student who has no uploaded photo yet.
+        new Student { first_name = "Layla",  middle_name = "Sami",  last_name = "Mansour", university_number = "S-20211847", user_name = "layla.mansour", email = "layla.mansour@student.vu.edu",  phone_number = "0940000001", face_id = "face_layla_20211847", photo_url = "" },
+        new Student { first_name = "Karim",  middle_name = "Adel",  last_name = "Nasir",   university_number = "S-20211285", user_name = "karim.nasir",   email = "karim.nasir@student.vu.edu",    phone_number = "0940000002", face_id = "face_karim_20211285", photo_url = "" },
+        new Student { first_name = "Omar",   middle_name = "Fadi",  last_name = "Khalil",  university_number = "S-20210934", user_name = "omar.khalil",   email = "omar.khalil@student.vu.edu",    phone_number = "0940000003", face_id = "face_omar_20210934", photo_url = "" },
+        new Student { first_name = "Nour",   middle_name = "Hani",  last_name = "Haddad",  university_number = "S-20212210", user_name = "nour.haddad",   email = "nour.haddad@student.vu.edu",    phone_number = "0940000004", face_id = "face_nour_20212210", photo_url = "" },
+        new Student { first_name = "Yara",   middle_name = "Ziad",  last_name = "Saleh",   university_number = "S-20213321", user_name = "yara.saleh",    email = "yara.saleh@student.vu.edu",     phone_number = "0940000005", face_id = "face_yara_20213321", photo_url = "" },
+        new Student { first_name = "Hadi",   middle_name = "Samer", last_name = "Aziz",    university_number = "S-20214412", user_name = "hadi.aziz",     email = "hadi.aziz@student.vu.edu",      phone_number = "0940000006", face_id = "face_hadi_20214412", photo_url = "" },
+        new Student { first_name = "Rima",   middle_name = "Nabil", last_name = "Awad",    university_number = "S-20215503", user_name = "rima.awad",     email = "rima.awad@student.vu.edu",      phone_number = "0940000007", face_id = "face_rima_20215503", photo_url = "" },
+        new Student { first_name = "Tarek",  middle_name = "Walid", last_name = "Salem",   university_number = "S-20216604", user_name = "tarek.salem",   email = "tarek.salem@student.vu.edu",    phone_number = "0940000008", face_id = "face_tarek_20216604", photo_url = "" }
     };
 
             var newStudents = new List<Student>();
