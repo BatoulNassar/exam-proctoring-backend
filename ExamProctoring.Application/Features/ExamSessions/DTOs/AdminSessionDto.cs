@@ -6,7 +6,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.DTOs
         public string Title { get; set; }
         public string CourseCode { get; set; }
         public string Status { get; set; }
-        public DateTime StartTime { get; set; }
+        public DateTimeOffset StartTime { get; set; }
         public int DurationMinutes { get; set; }
         public int TotalEnrolledStudents { get; set; }
         public int AssignedProctors { get; set; }

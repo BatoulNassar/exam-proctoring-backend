@@ -9,7 +9,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.DTOs
         public string Title { get; set; } = string.Empty;
         public string CourseTag { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
-        public DateTime StartTime { get; set; }
+        public DateTimeOffset StartTime { get; set; }
         public int DurationMinutes { get; set; }
         public int GracePeriodMinutes { get; set; }
         public int LoginWindowMinutes { get; set; }

@@ -208,7 +208,9 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 Title = s.title,
                 CourseTag = s.course_tag,
                 Status = s.status.ToString(),
-                StartTime = s.start_time,
+                // Stored in UTC, sent out carrying Damascus's offset, so a client can
+                // print it as-is and still parse it to the right instant.
+                StartTime = ExamScheduleTime.ToLocalOffset(s.start_time),
                 DurationMinutes = s.duration_minutes,
                 QuestionBankId = s.question_bank_id,
                 QuestionBankName = s.QuestionBank?.title ?? "N/A",
@@ -275,7 +277,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 Title = session.title,
                 CourseTag = session.course_tag,
                 Status = session.status.ToString(),
-                StartTime = session.start_time,
+                StartTime = ExamScheduleTime.ToLocalOffset(session.start_time),
                 DurationMinutes = session.duration_minutes,
                 GracePeriodMinutes = session.grace_period_minutes,
                 LoginWindowMinutes = session.login_window_minutes,

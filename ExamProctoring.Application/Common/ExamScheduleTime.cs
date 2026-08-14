@@ -68,5 +68,22 @@ namespace ExamProctoring.Application.Common
             var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Zone);
             return (DateOnly.FromDateTime(local), TimeOnly.FromDateTime(local));
         }
+
+        /// <summary>
+        /// The same instant carrying Damascus's offset, so it serialises as
+        /// "2026-08-14T20:20:00+03:00" — the wall clock the admin typed, with the
+        /// offset that still pins it to one exact moment.
+        /// </summary>
+        /// <remarks>
+        /// Preferred over a plain "…Z" on the wire: both describe the same instant
+        /// and both parse identically, but this one reads as the time the user
+        /// actually chose instead of one three hours off.
+        /// </remarks>
+        public static DateTimeOffset ToLocalOffset(DateTime utc)
+        {
+            var asUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+            var local = TimeZoneInfo.ConvertTimeFromUtc(asUtc, Zone);
+            return new DateTimeOffset(local, Zone.GetUtcOffset(asUtc));
+        }
     }
 }

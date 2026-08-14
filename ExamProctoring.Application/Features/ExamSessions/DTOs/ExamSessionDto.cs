@@ -4,7 +4,11 @@
     public string Title { get; set; }
     public string CourseTag { get; set; }
     public string Status { get; set; }
-    public DateTime StartTime { get; set; }
+    /// <summary>
+    /// Start of the exam, carrying Damascus's offset — "2026-08-14T20:20:00+03:00".
+    /// Reads as the wall clock the admin chose while still naming one exact instant.
+    /// </summary>
+    public DateTimeOffset StartTime { get; set; }
     public int DurationMinutes { get; set; }
     public int QuestionBankId { get; set; }
     public string QuestionBankName { get; set; }
