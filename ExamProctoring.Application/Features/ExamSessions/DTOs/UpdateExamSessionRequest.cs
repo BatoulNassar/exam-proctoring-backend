@@ -11,7 +11,14 @@ namespace ExamProctoring.Application.Features.ExamSessions.DTOs
     {
         public string? Title { get; set; }
         public string? CourseTag { get; set; }
-        public DateTime? StartTime { get; set; }
+        /// <summary>
+        /// New exam day, as "2026-12-12". Send together with <see cref="StartTimeOfDay"/>;
+        /// one without the other is rejected.
+        /// </summary>
+        public DateOnly? StartDate { get; set; }
+
+        /// <summary>New start time in Damascus local time, as "11:30".</summary>
+        public TimeOnly? StartTimeOfDay { get; set; }
         public int? DurationMinutes { get; set; }
         public int? QuestionBankId { get; set; }
         public int? GracePeriodMinutes { get; set; }

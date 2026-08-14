@@ -8,7 +8,11 @@ namespace ExamProctoring.Application.Features.ExamSessions.DTOs
     {
         public string Title { get; set; } = string.Empty;
         public string CourseCode { get; set; } = string.Empty;
-        public DateTime ScheduledStart { get; set; }
+        /// <summary>Exam day, as "2026-12-12".</summary>
+        public DateOnly ScheduledDate { get; set; }
+
+        /// <summary>Start time on that day in Damascus local time, as "11:30".</summary>
+        public TimeOnly ScheduledTime { get; set; }
         public int DurationMinutes { get; set; }
         public int GracePeriodMinutes { get; set; } = 5;
         public int LoginWindowMinutes { get; set; } = 5;

@@ -135,9 +135,13 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
 
         private async Task TransitionToClosedAsync(DateTime now)
         {
+            // duration_minutes already grows when a session is extended, so this end
+            // time is the extended one. An extension that goes through GRACE leaves
+            // ACTIVE entirely and is closed by TransitionFromGraceToClosedAsync, so
+            // there is no extended session for this query to skip.
             var sessionsToClose = await _examSessionRepository.GetByStatusAsync(
                 ExamSessionStatus.ACTIVE,
-                x => now >= x.start_time.AddMinutes(x.duration_minutes) && x.extended_by_minutes == 0);
+                x => now >= x.start_time.AddMinutes(x.duration_minutes));
 
             foreach (var session in sessionsToClose)
             {

@@ -9,7 +9,10 @@ namespace ExamProctoring.API.Services
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ExamSessionStateCheckBackgroundService> _logger;
-        private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(5);
+        // A session's start time is a promise to students and proctors, so the gap
+        // between that time and the status catching up has to stay small. At five
+        // minutes an exam due at 10:00 could still read LOCKED at 10:04.
+        private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
 
         public ExamSessionStateCheckBackgroundService(
             IServiceProvider serviceProvider,

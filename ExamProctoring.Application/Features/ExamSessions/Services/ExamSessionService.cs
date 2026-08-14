@@ -1,4 +1,5 @@
-﻿using ExamProctoring.Application.Common.DTOs;
+﻿using ExamProctoring.Application.Common;
+using ExamProctoring.Application.Common.DTOs;
 using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Features.ExamSessions.DTOs;
 using ExamProctoring.Domain.Entities;
@@ -44,7 +45,12 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
             if (!settingsAreValid)
                 return (CreateExamSessionResult.InvalidSettings, null);
 
-            if (request.ScheduledStart <= DateTime.UtcNow)
+            // The admin picks a day and a wall-clock time; both are anchored to
+            // Damascus and folded into one UTC instant here, so everything stored and
+            // every later comparison is in UTC.
+            var scheduledStartUtc = ExamScheduleTime.ToUtc(request.ScheduledDate, request.ScheduledTime);
+
+            if (scheduledStartUtc <= DateTime.UtcNow)
                 return (CreateExamSessionResult.StartTimeInPast, null);
 
             if (!await _questionBankRepository.ExistsAsync(request.QuestionBankId))
@@ -61,8 +67,9 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                         return (CreateExamSessionResult.InvalidProctor, null);
 
                     // Check if proctor is available for this time slot
+                    // Compared in UTC, like the stored start times it is checked against.
                     var conflicts = await _examSessionRepository.GetProctorSessionsWithTimeConflictAsync(
-                        proctorId, request.ScheduledStart, request.ScheduledStart.AddMinutes(request.DurationMinutes));
+                        proctorId, scheduledStartUtc, scheduledStartUtc.AddMinutes(request.DurationMinutes));
                     if (conflicts.Any())
                         return (CreateExamSessionResult.ProctorNotAvailable, null);
 
@@ -84,7 +91,7 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
                 title = request.Title.Trim(),
                 course_tag = request.CourseCode.Trim(),
                 status = ExamSessionStatus.DRAFT,
-                start_time = request.ScheduledStart,
+                start_time = scheduledStartUtc,
                 duration_minutes = request.DurationMinutes,
                 question_bank_id = request.QuestionBankId,
                 grace_period_minutes = request.GracePeriodMinutes,
@@ -380,7 +387,13 @@ namespace ExamProctoring.Application.Features.ExamSessions.Services
 
             if (request.Title != null) session.title = request.Title.Trim();
             if (request.CourseTag != null) session.course_tag = request.CourseTag.Trim();
-            if (request.StartTime.HasValue) session.start_time = request.StartTime.Value;
+            // Date and time move together: accepting one alone would silently pair a
+            // new day with the old clock time.
+            if (request.StartDate.HasValue != request.StartTimeOfDay.HasValue)
+                return (UpdateExamSessionResult.InvalidSettings, null);
+
+            if (request.StartDate.HasValue && request.StartTimeOfDay.HasValue)
+                session.start_time = ExamScheduleTime.ToUtc(request.StartDate.Value, request.StartTimeOfDay.Value);
             if (request.DurationMinutes.HasValue) session.duration_minutes = request.DurationMinutes.Value;
             if (request.QuestionBankId.HasValue) session.question_bank_id = request.QuestionBankId.Value;
             if (request.GracePeriodMinutes.HasValue) session.grace_period_minutes = request.GracePeriodMinutes.Value;
