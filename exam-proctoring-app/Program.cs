@@ -13,6 +13,8 @@ using ExamProctoring.Application.Features.DeviceChecks.Services;
 using ExamProctoring.Application.Features.Eligibility.Services;
 using ExamProctoring.Application.Features.ExamAttempts.Services;
 using ExamProctoring.Application.Features.ExamSessions.Services;
+using ExamProctoring.Application.Features.IdentityVerification;
+using ExamProctoring.Application.Features.IdentityVerification.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
 using ExamProctoring.API.Services;
 using ExamProctoring.Application.Features.Roles.Services;
@@ -25,6 +27,7 @@ using ExamProctoring.API.Extensions;
 using ExamProctoring.API.Middleware;
 using ExamProctoring.API.Services;
 using ExamProctoring.Infrastructure.Data;
+using ExamProctoring.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using ExamProctoring.Infrastructure.Persistence;
 using ExamProctoring.Infrastructure.Persistence.Repositories;
@@ -128,6 +131,7 @@ builder.Services.AddScoped<IDeviceCheckRepository, DeviceCheckRepository>();
 builder.Services.AddScoped<IAttemptRepository, AttemptRepository>();
 builder.Services.AddScoped<IStudentAnswerRepository, StudentAnswerRepository>();
 builder.Services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
+builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerificationRepository>();
 builder.Services.AddScoped<IAttemptFinalisationRepository, AttemptFinalisationRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
@@ -163,15 +167,33 @@ builder.Services.AddScoped<IStudentAuthService, StudentAuthService>();
 builder.Services.AddScoped<IEligibilityService, EligibilityService>();
 builder.Services.AddScoped<IDeviceCheckService, DeviceCheckService>();
 builder.Services.AddScoped<IExamAttemptService, ExamAttemptService>();
+builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationService>();
 
 // The single terminal-transition path shared by student submit, automatic expiry and proctor
 // termination. Registered before AlertService so the dependency direction stays obvious.
 builder.Services.AddScoped<IAttemptFinalisationService, AttemptFinalisationService>();
 builder.Services.AddScoped<IAttemptExpiryService, AttemptExpiryService>();
 
-// TEMPORARY identity gate: reads the existing StudentSession verification state. The Identity
-// Verification feature replaces this registration without touching any consumer.
-builder.Services.AddScoped<IIdentityGate, StudentSessionIdentityGate>();
+// The identity gate, now backed by the real Identity Verification feature. The seam is
+// unchanged: ExamAttemptService still only asks whether identity is settled for an attempt.
+builder.Services.AddScoped<IIdentityGate, PersistedIdentityGate>();
+
+// Pure cosine similarity over canonical L2-normalised SFace vectors. No inference happens
+// here - both vectors already exist by the time they reach the matcher.
+builder.Services.AddSingleton<IFaceMatcher, CosineFaceMatcher>();
+
+// Backend reference-face enrolment: YuNet + SFace over the trusted administrative photo.
+// Singleton because the two ONNX models are loaded once and reused; the implementation
+// serialises access itself, since neither native object is thread-safe.
+builder.Services.AddOptions<FaceRecognitionSettings>()
+    .Bind(builder.Configuration.GetSection(FaceRecognitionSettings.SectionName))
+    .Validate(s => !string.IsNullOrWhiteSpace(s.ModelDirectory),
+        "FaceRecognition:ModelDirectory must not be empty.")
+    .Validate(s => s.MaxImageDimension >= 112,
+        "FaceRecognition:MaxImageDimension must be at least 112, the SFace aligned-chip size.")
+    .ValidateOnStart();
+
+builder.Services.AddSingleton<IReferenceFaceEmbeddingGenerator, OpenCvReferenceFaceEmbeddingGenerator>();
 
 // Background services
 builder.Services.AddScoped<IQuestionBankStateTransitionService, QuestionBankStateTransitionService>();
@@ -263,5 +285,39 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<MonitoringHub>("/ws/monitoring");
+
+// Startup diagnostic for reference-face enrolment.
+//
+// Deliberately a log line rather than a hard failure: a missing model must not take the whole
+// API down, because every other endpoint still works without it. But it must be visible at
+// boot rather than discovered by an administrator halfway through importing a cohort - a
+// wrong relative path or a model that did not reach the publish output is exactly the class
+// of deployment problem this project has already hit once.
+using (var startupScope = app.Services.CreateScope())
+{
+    var faceLogger = startupScope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>().CreateLogger("FaceRecognition.Startup");
+
+    var generator = startupScope.ServiceProvider
+        .GetRequiredService<IReferenceFaceEmbeddingGenerator>() as OpenCvReferenceFaceEmbeddingGenerator;
+
+    if (generator == null)
+    {
+        faceLogger.LogWarning("Reference face enrolment is not backed by the OpenCV generator.");
+    }
+    else if (generator.ModelFilesExist)
+    {
+        faceLogger.LogInformation(
+            "Face recognition models found. detector={Detector} recognizer={Recognizer}",
+            generator.DetectorModelPath, generator.RecognizerModelPath);
+    }
+    else
+    {
+        faceLogger.LogError(
+            "Face recognition model files are MISSING. Student import will fail identity enrolment. " +
+            "Expected detector={Detector} recognizer={Recognizer}",
+            generator.DetectorModelPath, generator.RecognizerModelPath);
+    }
+}
 
 app.Run();

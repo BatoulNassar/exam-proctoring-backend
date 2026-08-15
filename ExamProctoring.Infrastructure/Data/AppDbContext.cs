@@ -43,6 +43,8 @@ namespace ExamProctoring.Infrastructure.Data
         public DbSet<AttemptQuestion> AttemptQuestions { get; set; }
         public DbSet<AttemptQuestionOption> AttemptQuestionOptions { get; set; }
         public DbSet<IdempotencyRecord> IdempotencyRecords { get; set; }
+        public DbSet<IdentityVerificationSession> IdentityVerificationSessions { get; set; }
+        public DbSet<IdentityVerificationAttempt> IdentityVerificationAttempts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

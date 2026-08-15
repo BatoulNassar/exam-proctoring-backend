@@ -29,6 +29,7 @@ namespace ExamProctoring.Application.Features.Settings.Services
                 LoginWindowMinutes = settings.login_window_minutes,
                 MaxLivenessAttempts = settings.max_liveness_attempts,
                 FaceMatchThreshold = settings.face_match_threshold,
+                SFaceCosineThreshold = settings.sface_cosine_threshold,
                 QuestionRandomisation = settings.question_randomisation,
                 OptionShuffle = settings.option_shuffle,
                 MaxWarningsBeforeTermination = settings.max_warnings_before_termination
@@ -43,6 +44,13 @@ namespace ExamProctoring.Application.Features.Settings.Services
             if (dto.MaxWarningsBeforeTermination < 0)
                 return (false, "Max warnings before termination cannot be negative", null);
 
+            // A cosine similarity outside (0, 1] is not a threshold - it is a typo that would
+            // silently become an accept-everything or reject-everything policy. Null stays
+            // allowed: "not yet calibrated" is a legitimate state.
+            if (dto.SFaceCosineThreshold is { } sfaceThreshold
+                && (!double.IsFinite(sfaceThreshold) || sfaceThreshold <= 0d || sfaceThreshold > 1d))
+                return (false, "SFace cosine threshold must be greater than 0 and at most 1", null);
+
             var settings = await _repository.GetAsync();
             if (settings == null)
                 return (false, "System settings not found", null);
@@ -54,6 +62,7 @@ namespace ExamProctoring.Application.Features.Settings.Services
             settings.login_window_minutes = dto.LoginWindowMinutes;
             settings.max_liveness_attempts = dto.MaxLivenessAttempts;
             settings.face_match_threshold = dto.FaceMatchThreshold;
+            settings.sface_cosine_threshold = dto.SFaceCosineThreshold;
             settings.question_randomisation = dto.QuestionRandomisation;
             settings.option_shuffle = dto.OptionShuffle;
             settings.max_warnings_before_termination = dto.MaxWarningsBeforeTermination;

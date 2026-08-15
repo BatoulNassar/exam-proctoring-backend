@@ -756,6 +756,178 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.ToTable("IdempotencyRecord", (string)null);
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdentityVerificationAttempt", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<int>("attempt_number")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("attempted_at_utc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("attempts_remaining_after")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("captured_at_utc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("client_attempt_id")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<string>("embedding_model")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("embedding_model_version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("identity_verification_session_id")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("liveness_accepted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("liveness_blink_count")
+                        .HasColumnType("int");
+
+                    b.Property<int>("liveness_duration_ms")
+                        .HasColumnType("int");
+
+                    b.Property<int>("liveness_frames_analysed")
+                        .HasColumnType("int");
+
+                    b.Property<double>("liveness_max_eye_openness")
+                        .HasColumnType("float");
+
+                    b.Property<double>("liveness_min_eye_openness")
+                        .HasColumnType("float");
+
+                    b.Property<string>("liveness_rejection_reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<double?>("match_score")
+                        .HasColumnType("float");
+
+                    b.Property<string>("outcome")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<double?>("threshold_used")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("identity_verification_session_id", "attempted_at_utc");
+
+                    b.HasIndex("identity_verification_session_id", "client_attempt_id")
+                        .IsUnique();
+
+                    b.ToTable("IdentityVerificationAttempt", (string)null);
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdentityVerificationSession", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("id"));
+
+                    b.Property<int>("attempts_used")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("created_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("deleted_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("deleted_by")
+                        .HasColumnType("int");
+
+                    b.Property<string>("device_id")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("max_attempts")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("public_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("student_session_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("updated_by")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("verified_at_utc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("public_id")
+                        .IsUnique();
+
+                    b.HasIndex("student_session_id")
+                        .IsUnique();
+
+                    b.ToTable("IdentityVerificationSession", (string)null);
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.MonitoringEvent", b =>
                 {
                     b.Property<int>("id")
@@ -1336,6 +1508,20 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<byte[]>("reference_face_embedding")
+                        .HasColumnType("varbinary(512)");
+
+                    b.Property<DateTime?>("reference_face_generated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("reference_face_model")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("reference_face_model_version")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("university_number")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1363,7 +1549,10 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.HasIndex("user_name")
                         .IsUnique();
 
-                    b.ToTable("Student", (string)null);
+                    b.ToTable("Student", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Student_reference_face_embedding_length", "[reference_face_embedding] IS NULL OR DATALENGTH([reference_face_embedding]) = 512");
+                        });
                 });
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.StudentAnswer", b =>
@@ -1650,6 +1839,9 @@ namespace ExamProctoring.Infrastructure.Migrations
 
                     b.Property<bool>("question_randomisation")
                         .HasColumnType("bit");
+
+                    b.Property<double?>("sface_cosine_threshold")
+                        .HasColumnType("float");
 
                     b.Property<DateTime?>("updated_at")
                         .HasColumnType("datetime2");
@@ -1990,6 +2182,28 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdentityVerificationAttempt", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.IdentityVerificationSession", "IdentityVerificationSession")
+                        .WithMany("Attempts")
+                        .HasForeignKey("identity_verification_session_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IdentityVerificationSession");
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdentityVerificationSession", b =>
+                {
+                    b.HasOne("ExamProctoring.Domain.Entities.StudentSession", "StudentSession")
+                        .WithMany()
+                        .HasForeignKey("student_session_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("StudentSession");
+                });
+
             modelBuilder.Entity("ExamProctoring.Domain.Entities.MonitoringEvent", b =>
                 {
                     b.HasOne("ExamProctoring.Domain.Entities.StudentSession", "StudentSession")
@@ -2191,6 +2405,11 @@ namespace ExamProctoring.Infrastructure.Migrations
                     b.Navigation("ProctorSessions");
 
                     b.Navigation("StudentSessions");
+                });
+
+            modelBuilder.Entity("ExamProctoring.Domain.Entities.IdentityVerificationSession", b =>
+                {
+                    b.Navigation("Attempts");
                 });
 
             modelBuilder.Entity("ExamProctoring.Domain.Entities.MonitoringEvent", b =>

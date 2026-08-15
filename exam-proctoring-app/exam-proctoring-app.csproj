@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>exam_proctoring_app</RootNamespace>
+
+    <NoWarn>$(NoWarn);CS9057</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +23,13 @@
   <ItemGroup>
     <ProjectReference Include="..\ExamProctoring.Application\ExamProctoring.Application.csproj" />
     <ProjectReference Include="..\ExamProctoring.Infrastructure\ExamProctoring.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Models\Face\*.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
