@@ -16,6 +16,7 @@ using ExamProctoring.Application.Features.ExamSessions.Services;
 using ExamProctoring.Application.Features.IdentityVerification;
 using ExamProctoring.Application.Features.IdentityVerification.Services;
 using ExamProctoring.Application.Features.QuestionBank.Services;
+using ExamProctoring.Application.Features.Streaming.Services;
 using ExamProctoring.API.Services;
 using ExamProctoring.Application.Features.Roles.Services;
 using ExamProctoring.Application.Features.Students.Services;
@@ -25,7 +26,6 @@ using ExamProctoring.Application.Interfaces;
 using ExamProctoring.API.Common;
 using ExamProctoring.API.Extensions;
 using ExamProctoring.API.Middleware;
-using ExamProctoring.API.Services;
 using ExamProctoring.Infrastructure.Data;
 using ExamProctoring.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -111,6 +111,37 @@ builder.Services.AddOptions<MonitoringPolicySettings>()
         "MonitoringPolicy:ConnectivityLostThresholdSeconds must be greater than 0.")
     .ValidateOnStart();
 
+builder.Services.AddOptions<WebRtcSettings>()
+    .Bind(builder.Configuration.GetSection("WebRtc"))
+    .Validate(s => s.StunUrls != null && s.StunUrls.Any(u => !string.IsNullOrWhiteSpace(u)),
+        "WebRtc:StunUrls must contain at least one STUN URL.")
+    .Validate(s => s.MaxConcurrentWatchesPerSession > 0,
+        "WebRtc:MaxConcurrentWatchesPerSession must be greater than 0.")
+    .ValidateOnStart();
+
+builder.Services.AddOptions<CorsSettings>()
+    .Bind(builder.Configuration.GetSection("Cors"))
+    .ValidateOnStart();
+
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DashboardCors", policy =>
+    {
+        if (corsOrigins.Length == 0)
+        {
+            policy.SetIsOriginAllowed(_ => false);
+            return;
+        }
+
+        policy.WithOrigins(corsOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
 // ===== Repositories =====
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
@@ -152,6 +183,10 @@ builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IMonitoringService, MonitoringService>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsService>();
 builder.Services.AddScoped<IMonitoringNotifier, SignalRMonitoringNotifier>();
+builder.Services.AddScoped<IStreamSignalingNotifier, SignalRStreamSignalingNotifier>();
+builder.Services.AddSingleton<IStudentHubPresence, InMemoryStudentHubPresence>();
+builder.Services.AddSingleton<IStreamWatchRegistry, InMemoryStreamWatchRegistry>();
+builder.Services.AddScoped<IIceServersService, IceServersService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IExamSessionService, ExamSessionService>();
 builder.Services.AddScoped<IExamSessionStateTransitionService, ExamSessionStateTransitionService>();
@@ -227,6 +262,20 @@ builder.Services.AddAuthentication(options =>
 
     options.Events = new JwtBearerEvents
     {
+        // Browser SignalR cannot always set Authorization on the WebSocket upgrade.
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken)
+                && path.StartsWithSegments("/ws/monitoring"))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        },
+
         OnAuthenticationFailed = context =>
         {
             Console.WriteLine("AUTH FAILED");
@@ -281,6 +330,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+app.UseCors("DashboardCors");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
