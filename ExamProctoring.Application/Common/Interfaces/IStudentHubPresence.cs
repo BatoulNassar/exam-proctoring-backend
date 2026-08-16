@@ -16,6 +16,21 @@ namespace ExamProctoring.Application.Common.Interfaces
 
         IReadOnlyList<int> GetConnectedStudentSessionIds(int examSessionId);
 
+        /// <summary>
+        /// Records a pipeline heartbeat. Returns false when the student is not present or the
+        /// connection does not own the session. <paramref name="pipelineChanged"/> is true when
+        /// the new status differs from the previous non-null value.
+        /// </summary>
+        bool TryRecordHeartbeat(
+            int studentSessionId,
+            string connectionId,
+            string pipelineStatus,
+            DateTime serverUtc,
+            out bool pipelineChanged,
+            out StudentHubPresenceEntry? entry);
+
+        bool TryGetPresence(int studentSessionId, out StudentHubPresenceEntry entry);
+
         void AddJoinedExamSession(string connectionId, int examSessionId);
 
         void RemoveJoinedExamSession(string connectionId, int examSessionId);
@@ -30,5 +45,7 @@ namespace ExamProctoring.Application.Common.Interfaces
         int ExamSessionId,
         int StudentSessionId,
         string ConnectionId,
-        DateTime ConnectedAtUtc);
+        DateTime ConnectedAtUtc,
+        DateTime? LastHeartbeatAtUtc = null,
+        string? PipelineStatus = null);
 }

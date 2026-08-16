@@ -1,10 +1,15 @@
 using ExamProctoring.Application.Common.Settings;
+using ExamProctoring.Application.Features.Alerts;
+using ExamProctoring.Application.Features.Monitoring.DTOs;
+using ExamProctoring.Application.Features.Monitoring.Services;
 using ExamProctoring.Application.Features.Streaming.Services;
+using ExamProctoring.Domain.Entities;
+using ExamProctoring.Domain.Enums;
 using Microsoft.Extensions.Options;
 
 namespace ExamProctoring.Application.Tests;
 
-/// Lightweight runner so registry/ICE tests can execute without NuGet Test SDK
+/// Lightweight runner so registry/ICE/monitor tests can execute without NuGet Test SDK
 /// when the feed is unavailable. Same assertions as the planned xUnit cases.
 internal static class Program
 {
@@ -29,8 +34,21 @@ internal static class Program
         Run("GetIceServers_WhenTurnConfigured_IncludesTurnEntry",
             IceServersServiceTests.GetIceServers_WhenTurnConfigured_IncludesTurnEntry);
 
+        Run("Heartbeat_UpdatesLastBeat_AndDetectsPipelineChange",
+            StudentHubPresenceTests.Heartbeat_UpdatesLastBeat_AndDetectsPipelineChange);
+        Run("Heartbeat_RejectsWrongConnection",
+            StudentHubPresenceTests.Heartbeat_RejectsWrongConnection);
+        Run("PipelineStatuses_OnlyAllowsKnownValues",
+            PipelineStatusTests.OnlyAllowsKnownValues);
+        Run("MapToAlertDto_IncludesStudentSessionAndSnapshot",
+            AlertMappingTests.MapToAlertDto_IncludesStudentSessionAndSnapshot);
+        Run("AlertTypeCatalog_FaceAbsence_IsCritical",
+            AlertCatalogTests.FaceAbsence_IsCritical);
+        Run("MaxSnapshotDecodedBytes_Is400KiB",
+            MonitoringConstantsTests.MaxSnapshotDecodedBytes_Is400KiB);
+
         Console.WriteLine(_failed == 0
-            ? "Passed! 8 tests."
+            ? "Passed! 14 tests."
             : $"Failed! {_failed} test(s).");
         return _failed == 0 ? 0 : 1;
     }
@@ -204,5 +222,106 @@ internal static class IceServersServiceTests
         Assert.Equal("user", result.IceServers[1].Username);
         Assert.Equal("secret", result.IceServers[1].Credential);
         Assert.Null(result.ExpiresAtUtc);
+    }
+}
+
+internal static class StudentHubPresenceTests
+{
+    public static void Heartbeat_UpdatesLastBeat_AndDetectsPipelineChange()
+    {
+        var sut = new InMemoryStudentHubPresence();
+        sut.SetStudentConnected(67, 43, "conn-1");
+
+        var t1 = DateTime.UtcNow;
+        Assert.True(sut.TryRecordHeartbeat(43, "conn-1", PipelineStatuses.Ok, t1, out var changed1, out var e1));
+        Assert.True(changed1);
+        Assert.Equal(PipelineStatuses.Ok, e1!.PipelineStatus);
+        Assert.Equal(t1, e1.LastHeartbeatAtUtc);
+
+        var t2 = t1.AddSeconds(10);
+        Assert.True(sut.TryRecordHeartbeat(43, "conn-1", PipelineStatuses.Ok, t2, out var changed2, out var e2));
+        Assert.False(changed2);
+        Assert.Equal(t2, e2!.LastHeartbeatAtUtc);
+
+        var t3 = t2.AddSeconds(10);
+        Assert.True(sut.TryRecordHeartbeat(
+            43, "conn-1", PipelineStatuses.CameraDown, t3, out var changed3, out var e3));
+        Assert.True(changed3);
+        Assert.Equal(PipelineStatuses.CameraDown, e3!.PipelineStatus);
+    }
+
+    public static void Heartbeat_RejectsWrongConnection()
+    {
+        var sut = new InMemoryStudentHubPresence();
+        sut.SetStudentConnected(67, 43, "conn-1");
+        Assert.False(sut.TryRecordHeartbeat(
+            43, "other", PipelineStatuses.Ok, DateTime.UtcNow, out _, out _));
+    }
+}
+
+internal static class PipelineStatusTests
+{
+    public static void OnlyAllowsKnownValues()
+    {
+        Assert.True(PipelineStatuses.IsKnown("OK"));
+        Assert.True(PipelineStatuses.IsKnown("CAMERA_DOWN"));
+        Assert.True(PipelineStatuses.IsKnown("ENGINE_DEGRADED"));
+        Assert.False(PipelineStatuses.IsKnown("BAD"));
+        Assert.False(PipelineStatuses.IsKnown(null));
+    }
+}
+
+internal static class AlertMappingTests
+{
+    public static void MapToAlertDto_IncludesStudentSessionAndSnapshot()
+    {
+        var session = new StudentSession
+        {
+            id = 43,
+            student_id = 12,
+            exam_session_id = 67,
+            Student = new Student
+            {
+                first_name = "Manar",
+                last_name = "Jarkas",
+                university_number = "VU-2024-002",
+            },
+            ExamSession = new ExamSession { title = "Algorithms Midterm" },
+        };
+
+        var alert = new AlertEvent
+        {
+            id = 1204,
+            student_session_id = 43,
+            alert_type = "FaceAbsence",
+            severity = AlertSeverity.Critical,
+            status = AlertStatus.Open,
+            triggered_at = DateTime.UtcNow,
+            snapshot_url = "https://cdn.example/snap.jpg",
+        };
+
+        var dto = MonitoringService.MapToAlertDto(alert, session);
+        Assert.Equal(43, dto.StudentSessionId);
+        Assert.Equal("https://cdn.example/snap.jpg", dto.SnapshotUrl);
+        Assert.Equal("FaceAbsence", dto.AlertType);
+        Assert.Equal("Critical", dto.Severity);
+        Assert.Equal(67, dto.SessionId);
+    }
+}
+
+internal static class AlertCatalogTests
+{
+    public static void FaceAbsence_IsCritical()
+    {
+        Assert.True(AlertTypeCatalog.IsKnown("FaceAbsence"));
+        Assert.Equal(AlertSeverity.Critical, AlertTypeCatalog.GetSeverity("FaceAbsence"));
+    }
+}
+
+internal static class MonitoringConstantsTests
+{
+    public static void MaxSnapshotDecodedBytes_Is400KiB()
+    {
+        Assert.Equal(400 * 1024, MonitoringService.MaxSnapshotDecodedBytes);
     }
 }

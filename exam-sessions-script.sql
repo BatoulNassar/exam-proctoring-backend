@@ -1,6 +1,7 @@
 /*==============================================================================
   FE TEST - ELIGIBILITY  |  Seed data for GET /api/v1/sessions/eligibility
-  Target student: manar.jk        All times: UTC (SYSUTCDATETIME())
+  Target student: VU-2024-002 (Layla Hassan / layla.hassan@vu.edu)
+  All times: UTC (SYSUTCDATETIME())
   Safe to re-run. Creates nothing outside the 'FE TEST - ELIGIBILITY - ' prefix.
 
   The endpoint returns exactly ONE session, so only ONE case is observable
@@ -38,15 +39,19 @@ INSERT @Cases (case_key, title, expect_eligible, expect_reason) VALUES
 IF NOT EXISTS (SELECT 1 FROM @Cases WHERE case_key = @Case)
     THROW 50010, 'FE TEST: invalid @Case. Use ELIGIBLE, UPCOMING, WINDOW_CLOSED, FINISHED, GRACE, SUBMITTED, IN_EXAM or MULTI_ACTIVE.', 1;
 
-/*--- 1. Resolve the student dynamically (username, then email) -------------*/
+/*--- 1. Resolve Layla (the Mac-app identity-verification test account) ----*/
 DECLARE @StudentId int;
 SELECT @StudentId = id
 FROM dbo.Student
 WHERE is_deleted = 0
-  AND (user_name = N'manar.jk' OR email = N'manar.jk');
+  AND (
+        user_name = N'VU-2024-002'
+     OR university_number = N'VU-2024-002'
+     OR email = N'layla.hassan@vu.edu'
+  );
 
 IF @StudentId IS NULL
-    THROW 50011, 'FE TEST: student ''manar.jk'' not found in dbo.Student (or is soft-deleted). Nothing was changed.', 1;
+    THROW 50011, 'FE TEST: student VU-2024-002 (Layla Hassan) not found in dbo.Student (or is soft-deleted). Import students_import.zip first. Nothing was changed.', 1;
 
 /*--- 2. Resolve an admin User for the required FKs -------------------------*/
 DECLARE @AdminId int;
@@ -122,6 +127,9 @@ UPDATE ss SET
     ss.status              = N'NotStarted',
     ss.login_at            = NULL,
     ss.verified_at         = NULL,
+    ss.liveness_passed     = 0,
+    ss.face_match_passed   = 0,
+    ss.failed_auth_attempts = 0,
     ss.submitted_at        = NULL,
     ss.started_at          = NULL,
     ss.ends_at             = NULL,
@@ -137,6 +145,26 @@ UPDATE ss SET
 FROM dbo.StudentSession ss
 JOIN dbo.ExamSession e ON e.id = ss.exam_session_id
 JOIN @Cases c          ON c.title = e.title
+WHERE ss.student_id = @StudentId;
+
+/*--- 6a. Wipe identity verification so a re-seeded ELIGIBLE run can open
+        the camera again. StudentSession.verified_at alone is not enough:
+        POST /identity/verification-sessions keys off
+        IdentityVerificationSession.verified_at_utc and returns 409
+        IDV_ALREADY_VERIFIED while that stamp remains.                      */
+DELETE iva
+FROM dbo.IdentityVerificationAttempt iva
+JOIN dbo.IdentityVerificationSession ivs ON ivs.id = iva.identity_verification_session_id
+JOIN dbo.StudentSession ss ON ss.id = ivs.student_session_id
+JOIN dbo.ExamSession e ON e.id = ss.exam_session_id
+JOIN @Cases c ON c.title = e.title
+WHERE ss.student_id = @StudentId;
+
+DELETE ivs
+FROM dbo.IdentityVerificationSession ivs
+JOIN dbo.StudentSession ss ON ss.id = ivs.student_session_id
+JOIN dbo.ExamSession e ON e.id = ss.exam_session_id
+JOIN @Cases c ON c.title = e.title
 WHERE ss.student_id = @StudentId;
 
 /*--- 6b. Wipe prior progressive answers so a re-seeded ELIGIBLE run is a

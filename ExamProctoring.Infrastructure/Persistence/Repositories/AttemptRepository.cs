@@ -96,6 +96,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                     .SetProperty(ss => ss.ends_at, endsAtUtc)
                     .SetProperty(ss => ss.device_id, deviceId)
                     .SetProperty(ss => ss.status, StudentSessionStatus.InExam)
+                    .SetProperty(ss => ss.login_at, startedAtUtc)
                     .SetProperty(ss => ss.updated_at, nowUtc));
 
             return rowsAffected == 1;

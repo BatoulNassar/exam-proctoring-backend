@@ -1,6 +1,6 @@
 using ExamProctoring.Application.Common.Interfaces;
 
-namespace ExamProctoring.API.Services
+namespace ExamProctoring.Application.Features.Monitoring.Services
 {
     /// Process-local student hub presence + dashboard JoinSession tracking.
     public sealed class InMemoryStudentHubPresence : IStudentHubPresence
@@ -15,17 +15,24 @@ namespace ExamProctoring.API.Services
             ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
             lock (_gate)
             {
-                if (_byStudentSession.TryGetValue(studentSessionId, out var previous)
-                    && !string.Equals(previous.ConnectionId, connectionId, StringComparison.Ordinal))
+                DateTime? lastHeartbeat = null;
+                string? pipelineStatus = null;
+
+                if (_byStudentSession.TryGetValue(studentSessionId, out var previous))
                 {
-                    _studentSessionByConnection.Remove(previous.ConnectionId);
+                    lastHeartbeat = previous.LastHeartbeatAtUtc;
+                    pipelineStatus = previous.PipelineStatus;
+                    if (!string.Equals(previous.ConnectionId, connectionId, StringComparison.Ordinal))
+                        _studentSessionByConnection.Remove(previous.ConnectionId);
                 }
 
                 var entry = new StudentHubPresenceEntry(
                     examSessionId,
                     studentSessionId,
                     connectionId,
-                    DateTime.UtcNow);
+                    DateTime.UtcNow,
+                    lastHeartbeat,
+                    pipelineStatus);
 
                 _byStudentSession[studentSessionId] = entry;
                 _studentSessionByConnection[connectionId] = studentSessionId;
@@ -93,6 +100,54 @@ namespace ExamProctoring.API.Services
                     .Select(e => e.StudentSessionId)
                     .OrderBy(id => id)
                     .ToArray();
+            }
+        }
+
+        public bool TryRecordHeartbeat(
+            int studentSessionId,
+            string connectionId,
+            string pipelineStatus,
+            DateTime serverUtc,
+            out bool pipelineChanged,
+            out StudentHubPresenceEntry? entry)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(connectionId);
+            pipelineChanged = false;
+            entry = null;
+
+            lock (_gate)
+            {
+                if (!_byStudentSession.TryGetValue(studentSessionId, out var current))
+                    return false;
+
+                if (!string.Equals(current.ConnectionId, connectionId, StringComparison.Ordinal))
+                    return false;
+
+                var previousPipeline = current.PipelineStatus;
+                pipelineChanged = !string.Equals(previousPipeline, pipelineStatus, StringComparison.Ordinal);
+
+                entry = current with
+                {
+                    LastHeartbeatAtUtc = serverUtc,
+                    PipelineStatus = pipelineStatus,
+                };
+                _byStudentSession[studentSessionId] = entry;
+                return true;
+            }
+        }
+
+        public bool TryGetPresence(int studentSessionId, out StudentHubPresenceEntry entry)
+        {
+            lock (_gate)
+            {
+                if (_byStudentSession.TryGetValue(studentSessionId, out var found))
+                {
+                    entry = found;
+                    return true;
+                }
+
+                entry = default!;
+                return false;
             }
         }
 

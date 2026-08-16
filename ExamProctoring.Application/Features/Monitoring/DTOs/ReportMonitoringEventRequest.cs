@@ -22,5 +22,11 @@ namespace ExamProctoring.Application.Features.Monitoring.DTOs
         /// than the session; the server clock is authoritative in those cases.
         /// </summary>
         public DateTime? OccurredAt { get; set; }
+
+        /// <summary>Raw base64 JPEG/PNG without a data: URL prefix. Optional.</summary>
+        public string? SnapshotBase64 { get; set; }
+
+        /// <summary>Default image/jpeg. Allowed: image/jpeg, image/png.</summary>
+        public string? SnapshotContentType { get; set; }
     }
 }

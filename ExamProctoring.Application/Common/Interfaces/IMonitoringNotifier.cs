@@ -1,4 +1,5 @@
 using ExamProctoring.Application.Features.Alerts.DTOs;
+using ExamProctoring.Application.Features.Monitoring.DTOs;
 
 namespace ExamProctoring.Application.Common.Interfaces
 {
@@ -15,8 +16,8 @@ namespace ExamProctoring.Application.Common.Interfaces
         /// <summary>A new alert was raised. Drives the live alert feed and the card badges.</summary>
         Task NotifyAlertCreatedAsync(int sessionId, AlertEventDto alert);
 
-        /// <summary>A student's state changed (logged in, disconnected, terminated, submitted).</summary>
-        Task NotifyStudentStatusChangedAsync(int sessionId, int studentSessionId, string newStatus);
+        /// <summary>A student's state changed (logged in, disconnected, terminated, submitted, pipeline).</summary>
+        Task NotifyStudentStatusChangedAsync(int examSessionId, StudentStatusChangedDto status);
 
         // ===== To the one student sitting the exam =====
 

@@ -7,11 +7,18 @@ namespace ExamProctoring.Application.Features.Students.Services
     public interface ICloudinaryService
     {
         Task<(bool Success, string Url, string ErrorMessage)> UploadImageAsync(Stream imageStream, string fileName);
+
+        Task<(bool Success, string Url, string ErrorMessage)> UploadImageAsync(
+            Stream imageStream, string fileName, string folder);
+
         Task<bool> DeleteImageAsync(string publicId);
     }
 
     public class CloudinaryService : ICloudinaryService
     {
+        public const string StudentFacesFolder = "exam-proctoring/student-faces";
+        public const string AlertSnapshotsFolder = "exam-proctoring/alert-snapshots";
+
         private readonly Cloudinary _cloudinary;
 
         public CloudinaryService(IConfiguration configuration)
@@ -27,7 +34,12 @@ namespace ExamProctoring.Application.Features.Students.Services
             _cloudinary = new Cloudinary(account);
         }
 
-        public async Task<(bool Success, string Url, string ErrorMessage)> UploadImageAsync(Stream imageStream, string fileName)
+        public Task<(bool Success, string Url, string ErrorMessage)> UploadImageAsync(
+            Stream imageStream, string fileName) =>
+            UploadImageAsync(imageStream, fileName, StudentFacesFolder);
+
+        public async Task<(bool Success, string Url, string ErrorMessage)> UploadImageAsync(
+            Stream imageStream, string fileName, string folder)
         {
             try
             {
@@ -35,7 +47,7 @@ namespace ExamProctoring.Application.Features.Students.Services
                 {
                     File = new FileDescription(fileName, imageStream),
                     PublicId = $"{Path.GetFileNameWithoutExtension(fileName)}-{Guid.NewGuid()}",
-                    Folder = "exam-proctoring/student-faces",
+                    Folder = string.IsNullOrWhiteSpace(folder) ? StudentFacesFolder : folder,
                     Overwrite = false
                 };
 

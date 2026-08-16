@@ -10,5 +10,7 @@ namespace ExamProctoring.Application.Features.Monitoring.DTOs
         public DateTime? LoginAt { get; set; }
         public int OpenAlertCount { get; set; }
         public string? LatestAlertType { get; set; }
+        public string? PipelineStatus { get; set; }
+        public DateTime? LastHeartbeatAtUtc { get; set; }
     }
 }

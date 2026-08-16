@@ -29,6 +29,7 @@ namespace ExamProctoring.API.Hubs
         private readonly IStudentHubPresence _presence;
         private readonly IStreamWatchRegistry _watches;
         private readonly IStreamSignalingNotifier _streamNotifier;
+        private readonly IMonitoringNotifier _monitoringNotifier;
         private readonly WebRtcSettings _webRtc;
         private readonly ILogger<MonitoringHub> _logger;
 
@@ -38,6 +39,7 @@ namespace ExamProctoring.API.Hubs
             IStudentHubPresence presence,
             IStreamWatchRegistry watches,
             IStreamSignalingNotifier streamNotifier,
+            IMonitoringNotifier monitoringNotifier,
             IOptions<WebRtcSettings> webRtc,
             ILogger<MonitoringHub> logger)
         {
@@ -46,6 +48,7 @@ namespace ExamProctoring.API.Hubs
             _presence = presence;
             _watches = watches;
             _streamNotifier = streamNotifier;
+            _monitoringNotifier = monitoringNotifier;
             _webRtc = webRtc.Value;
             _logger = logger;
         }
