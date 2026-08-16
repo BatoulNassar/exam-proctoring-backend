@@ -13,8 +13,8 @@ namespace ExamProctoring.Application.Common.Settings
         /// that has not run the development demo seed.
         public bool AudioMonitoringEnabledFallback { get; set; } = true;
 
-        /// Negative decibel threshold, e.g. -25.
-        public int AudioNoiseThresholdDb { get; set; } = -25;
+        /// Negative decibel threshold, e.g. -40.
+        public int AudioNoiseThresholdDb { get; set; } = -40;
 
         public int HeartbeatIntervalSeconds { get; set; } = 10;
 

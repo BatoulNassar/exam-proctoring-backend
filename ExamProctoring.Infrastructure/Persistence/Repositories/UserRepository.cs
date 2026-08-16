@@ -19,23 +19,26 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
 
         public async Task<User> GetByEmailWithRolesAndPermissionsAsync(string email)
         {
+            // Roles/permissions only — do not Include RefreshTokens. That table
+            // grows with every login and the cartesian join with Permission_Role
+            // hangs dashboard login against the remote SQL host.
             return await _context.Users
+                .AsSplitQuery()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                         .ThenInclude(r => r.PermissionRoles)
                             .ThenInclude(pr => pr.Permission)
-                .Include(u => u.RefreshTokens)
                 .SingleOrDefaultAsync(u => u.email == email);
         }
 
         public async Task<User> GetByIdWithRolesAndPermissionsAsync(int userId)
         {
             return await _context.Users
+                .AsSplitQuery()
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                         .ThenInclude(r => r.PermissionRoles)
                             .ThenInclude(pr => pr.Permission)
-                .Include(u => u.RefreshTokens)
                 .SingleOrDefaultAsync(u => u.id == userId);
         }
 
