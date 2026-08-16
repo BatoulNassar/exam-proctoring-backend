@@ -142,6 +142,7 @@ namespace ExamProctoring.Application.Features.Users.Services
             {
                 Id = a.id,
                 UserName = a.user_name ?? string.Empty,
+                IsActive = a.is_active,
                 Permissions = a.UserRoles?.SelectMany(ur => ur.Role.PermissionRoles).Select(pr => pr.Permission.name).Distinct().ToList() ?? new List<string>()
             }).ToList();
 

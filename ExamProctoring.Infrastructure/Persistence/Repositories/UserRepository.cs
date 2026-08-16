@@ -142,6 +142,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Repositories
                     u.full_name,
                     u.email,
                     u.phone_number,
+                    u.is_active,
                     AssignedSessionsCount = u.ProctorSessions.Count(),
                     ActiveSessionsCount = u.ProctorSessions.Count(ps => ps.ExamSession.status == Domain.Enums.ExamSessionStatus.ACTIVE || ps.ExamSession.status == Domain.Enums.ExamSessionStatus.GRACE)
                 })
