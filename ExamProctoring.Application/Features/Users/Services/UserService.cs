@@ -93,21 +93,35 @@ namespace ExamProctoring.Application.Features.Users.Services
             };
         }
 
-        public async Task DeleteAdminAsync(int adminId)
+        public async Task<(bool Success, string Message)> DeleteUserAsync(int userId, int actorId)
         {
-            if (adminId <= 0)
-                throw new InvalidOperationException("Invalid admin ID");
+            if (userId <= 0)
+                return (false, "Invalid user ID");
 
-            var admin = await _userRepository.GetByIdWithRolesAndPermissionsAsync(adminId);
+            if (userId == actorId)
+                return (false, "Cannot delete your own account");
 
-            if (admin == null)
-                throw new InvalidOperationException("Admin not found");
+            var user = await _userRepository.GetByIdWithRolesAndPermissionsAsync(userId);
+            if (user == null || user.is_deleted)
+                return (false, "User not found");
 
-            await _userRoleRepository.RemoveByUserIdAsync(adminId);
-            await _refreshTokenRepository.RemoveByUserIdAsync(adminId);
-            await _userRepository.DeleteAsync(admin);
+            var isSuperAdmin = user.UserRoles?.Any(ur => ur.Role?.name == "SuperAdmin") ?? false;
+            if (isSuperAdmin)
+                return (false, "Cannot delete a SuperAdmin account");
 
+            await _refreshTokenRepository.RemoveByUserIdAsync(userId);
+
+            user.is_deleted = true;
+            user.is_active = false;
+            user.deleted_at = DateTime.UtcNow;
+            user.deleted_by = actorId;
+            user.updated_at = DateTime.UtcNow;
+            user.updated_by = actorId;
+
+            await _userRepository.UpdateAsync(user);
             await _unitOfWork.SaveChangesAsync();
+
+            return (true, "User deleted successfully");
         }
 
         private string GenerateTemporaryPassword()
@@ -140,47 +154,53 @@ namespace ExamProctoring.Application.Features.Users.Services
             };
         }
 
-        public async Task<(bool Success, string Message)> DeactivateAdminAsync(int adminId, int actorId)
+        public async Task<(bool Success, string Message)> DeactivateUserAsync(int userId, int actorId)
         {
-            if (adminId == actorId)
+            if (userId == actorId)
                 return (false, "Cannot deactivate your own account");
 
-            var admin = await _userRepository.GetByIdWithRolesAndPermissionsAsync(adminId);
-            if (admin == null)
-                return (false, "Admin not found");
+            var user = await _userRepository.GetByIdWithRolesAndPermissionsAsync(userId);
+            if (user == null || user.is_deleted)
+                return (false, "User not found");
 
-            var adminRole = admin.UserRoles?.FirstOrDefault(ur => ur.Role.name == "Admin");
-            if (adminRole == null)
-                return (false, "User is not an admin");
+            var isSuperAdmin = user.UserRoles?.Any(ur => ur.Role.name == "SuperAdmin") ?? false;
+            if (isSuperAdmin)
+                return (false, "Cannot deactivate a SuperAdmin account");
 
-            admin.is_active = false;
-            admin.updated_at = DateTime.UtcNow;
-            admin.updated_by = actorId;
+            if (!user.is_active)
+                return (false, "Account is already deactivated");
 
-            await _userRepository.UpdateAsync(admin);
+            user.is_active = false;
+            user.updated_at = DateTime.UtcNow;
+            user.updated_by = actorId;
+
+            await _userRepository.UpdateAsync(user);
             await _unitOfWork.SaveChangesAsync();
 
-            return (true, "Admin account deactivated successfully");
+            return (true, "Account deactivated successfully");
         }
 
-        public async Task<(bool Success, string Message)> ReactivateAdminAsync(int adminId, int actorId)
+        public async Task<(bool Success, string Message)> ReactivateUserAsync(int userId, int actorId)
         {
-            var admin = await _userRepository.GetByIdWithRolesAndPermissionsAsync(adminId);
-            if (admin == null)
-                return (false, "Admin not found");
+            var user = await _userRepository.GetByIdWithRolesAndPermissionsAsync(userId);
+            if (user == null || user.is_deleted)
+                return (false, "User not found");
 
-            var adminRole = admin.UserRoles?.FirstOrDefault(ur => ur.Role.name == "Admin");
-            if (adminRole == null)
-                return (false, "User is not an admin");
+            var isSuperAdmin = user.UserRoles?.Any(ur => ur.Role.name == "SuperAdmin") ?? false;
+            if (isSuperAdmin)
+                return (false, "Cannot modify a SuperAdmin account");
 
-            admin.is_active = true;
-            admin.updated_at = DateTime.UtcNow;
-            admin.updated_by = actorId;
+            if (user.is_active)
+                return (false, "Account is already active");
 
-            await _userRepository.UpdateAsync(admin);
+            user.is_active = true;
+            user.updated_at = DateTime.UtcNow;
+            user.updated_by = actorId;
+
+            await _userRepository.UpdateAsync(user);
             await _unitOfWork.SaveChangesAsync();
 
-            return (true, "Admin account reactivated successfully");
+            return (true, "Account reactivated successfully");
         }
     }
 }

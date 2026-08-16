@@ -41,12 +41,21 @@ namespace ExamProctoring.API.Controllers
         }
 
         [Authorize(Roles = "SuperAdmin")]
-        [HttpDelete("{adminId}")]
-        public async Task<IActionResult> DeleteAdmin(int adminId)
+        [HttpDelete("{userId}")]
+        public async Task<IActionResult> DeleteUser(int userId)
         {
-            await _userService.DeleteAdminAsync(adminId);
-            return Ok(ApiResponse<object>.Ok(null!, "Admin deleted successfully"));
+            var actorId = GetActorId();
+            if (actorId == null)
+                return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
+
+            var (success, message) = await _userService.DeleteUserAsync(userId, actorId.Value);
+
+            if (!success)
+                return BadRequest(ApiResponse<object>.Fail(message, 400));
+
+            return Ok(ApiResponse<object>.Ok(null, message));
         }
+
 
         /// SuperAdmin creates a new admin account with temporary password
         [Authorize(Roles = "SuperAdmin")]
@@ -69,18 +78,15 @@ namespace ExamProctoring.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Deactivate an admin account (disable login).
-        /// </summary>
         [Authorize(Roles = "SuperAdmin")]
-        [HttpPost("{adminId}/deactivate")]
-        public async Task<IActionResult> DeactivateAdmin(int adminId)
+        [HttpPost("{userId}/deactivate")]
+        public async Task<IActionResult> DeactivateUser(int userId)
         {
             var actorId = GetActorId();
             if (actorId == null)
                 return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
 
-            var (success, message) = await _userService.DeactivateAdminAsync(adminId, actorId.Value);
+            var (success, message) = await _userService.DeactivateUserAsync(userId, actorId.Value);
 
             if (!success)
                 return BadRequest(ApiResponse<object>.Fail(message, 400));
@@ -88,18 +94,16 @@ namespace ExamProctoring.API.Controllers
             return Ok(ApiResponse<object>.Ok(null, message));
         }
 
-        /// <summary>
-        /// Reactivate a deactivated admin account (enable login).
-        /// </summary>
+
         [Authorize(Roles = "SuperAdmin")]
-        [HttpPost("{adminId}/reactivate")]
-        public async Task<IActionResult> ReactivateAdmin(int adminId)
+        [HttpPost("{userId}/reactivate")]
+        public async Task<IActionResult> ReactivateUser(int userId)
         {
             var actorId = GetActorId();
             if (actorId == null)
                 return Unauthorized(ApiResponse<object>.Fail("Invalid user identity", 401));
 
-            var (success, message) = await _userService.ReactivateAdminAsync(adminId, actorId.Value);
+            var (success, message) = await _userService.ReactivateUserAsync(userId, actorId.Value);
 
             if (!success)
                 return BadRequest(ApiResponse<object>.Fail(message, 400));
