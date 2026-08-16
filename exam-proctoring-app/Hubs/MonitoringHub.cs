@@ -1,6 +1,10 @@
 using ExamProctoring.Application.Common.Interfaces;
+using ExamProctoring.Application.Common.Settings;
+using ExamProctoring.Application.Features.Streaming.DTOs;
+using ExamProctoring.Application.Features.Streaming.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Options;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
@@ -14,20 +18,39 @@ namespace ExamProctoring.API.Hubs
     /// request is a claim, not a permission.
     /// </summary>
     [Authorize]
-    public class MonitoringHub : Hub
+    public partial class MonitoringHub : Hub
     {
         public const string SessionGroupPrefix = "session-";
         public const string StudentSessionGroupPrefix = "student-session-";
+        public const int MaxSignalingPayloadBytes = 64 * 1024;
 
         private readonly IProctorSessionRepository _proctorSessionRepository;
         private readonly IStudentSessionRepository _studentSessionRepository;
+        private readonly IStudentHubPresence _presence;
+        private readonly IStreamWatchRegistry _watches;
+        private readonly IStreamSignalingNotifier _streamNotifier;
+        private readonly IMonitoringNotifier _monitoringNotifier;
+        private readonly WebRtcSettings _webRtc;
+        private readonly ILogger<MonitoringHub> _logger;
 
         public MonitoringHub(
             IProctorSessionRepository proctorSessionRepository,
-            IStudentSessionRepository studentSessionRepository)
+            IStudentSessionRepository studentSessionRepository,
+            IStudentHubPresence presence,
+            IStreamWatchRegistry watches,
+            IStreamSignalingNotifier streamNotifier,
+            IMonitoringNotifier monitoringNotifier,
+            IOptions<WebRtcSettings> webRtc,
+            ILogger<MonitoringHub> logger)
         {
             _proctorSessionRepository = proctorSessionRepository;
             _studentSessionRepository = studentSessionRepository;
+            _presence = presence;
+            _watches = watches;
+            _streamNotifier = streamNotifier;
+            _monitoringNotifier = monitoringNotifier;
+            _webRtc = webRtc.Value;
+            _logger = logger;
         }
 
         private bool IsStudentToken() =>
@@ -44,6 +67,10 @@ namespace ExamProctoring.API.Hubs
             return int.TryParse(claim, out var id) ? id : null;
         }
 
+        private bool IsPrivilegedDashboardUser() =>
+            Context.User?.IsInRole("SuperAdmin") == true
+            || Context.User?.IsInRole("Admin") == true;
+
         /// <summary>
         /// Subscribes a proctor or admin to an exam session's live feed. A proctor
         /// must be assigned to it; admins and super admins may watch any session.
@@ -53,10 +80,7 @@ namespace ExamProctoring.API.Hubs
             if (IsStudentToken())
                 throw new HubException("Student clients cannot watch a session feed");
 
-            var isPrivileged = Context.User?.IsInRole("SuperAdmin") == true
-                            || Context.User?.IsInRole("Admin") == true;
-
-            if (!isPrivileged)
+            if (!IsPrivilegedDashboardUser())
             {
                 var proctorId = GetUserId();
                 if (proctorId == null)
@@ -68,11 +92,21 @@ namespace ExamProctoring.API.Hubs
             }
 
             await Groups.AddToGroupAsync(Context.ConnectionId, $"{SessionGroupPrefix}{sessionId}");
+            _presence.AddJoinedExamSession(Context.ConnectionId, sessionId);
+
+            await _streamNotifier.NotifyPresenceSnapshotAsync(
+                Context.ConnectionId,
+                new StudentHubPresenceSnapshotDto
+                {
+                    ExamSessionId = sessionId,
+                    ConnectedStudentSessionIds = _presence.GetConnectedStudentSessionIds(sessionId),
+                });
         }
 
         public async Task LeaveSession(int sessionId)
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"{SessionGroupPrefix}{sessionId}");
+            _presence.RemoveJoinedExamSession(Context.ConnectionId, sessionId);
         }
 
         /// <summary>
@@ -92,12 +126,108 @@ namespace ExamProctoring.API.Hubs
             if (studentSession == null || studentSession.student_id != studentId.Value)
                 throw new HubException("This attempt does not belong to you");
 
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"{StudentSessionGroupPrefix}{studentSessionId}");
+            await Groups.AddToGroupAsync(
+                Context.ConnectionId,
+                $"{StudentSessionGroupPrefix}{studentSessionId}");
+
+            var examSessionId = studentSession.exam_session_id;
+            _presence.SetStudentConnected(examSessionId, studentSessionId, Context.ConnectionId);
+
+            await _streamNotifier.NotifyStudentConnectedAsync(
+                examSessionId,
+                new StudentHubConnectedDto
+                {
+                    StudentSessionId = studentSessionId,
+                    ConnectedAtUtc = DateTime.UtcNow,
+                });
         }
 
         public async Task LeaveStudentSession(int studentSessionId)
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"{StudentSessionGroupPrefix}{studentSessionId}");
+            await Groups.RemoveFromGroupAsync(
+                Context.ConnectionId,
+                $"{StudentSessionGroupPrefix}{studentSessionId}");
+
+            if (_watches.TryRemoveForStudentSession(studentSessionId, out var watch))
+            {
+                await _streamNotifier.NotifyWatchEndedAsync(
+                    watch.ProctorConnectionId,
+                    watch.StudentConnectionId,
+                    new StreamWatchEndedDto
+                    {
+                        WatchId = watch.WatchId,
+                        StudentSessionId = watch.StudentSessionId,
+                        Reason = StreamWatchCodes.StudentEnded,
+                        EndedAtUtc = DateTime.UtcNow,
+                    });
+
+                _logger.LogInformation(
+                    "Stream watch {WatchId} ended ({Reason}) for studentSession {StudentSessionId}",
+                    watch.WatchId,
+                    StreamWatchCodes.StudentEnded,
+                    studentSessionId);
+            }
+
+            var cleared = _presence.ClearStudentBySession(studentSessionId, Context.ConnectionId);
+            if (cleared != null)
+            {
+                await _streamNotifier.NotifyStudentDisconnectedAsync(
+                    cleared.ExamSessionId,
+                    new StudentHubDisconnectedDto
+                    {
+                        StudentSessionId = cleared.StudentSessionId,
+                        DisconnectedAtUtc = DateTime.UtcNow,
+                        Reason = StreamWatchCodes.DisconnectReasonLeave,
+                    });
+            }
+        }
+
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            var connectionId = Context.ConnectionId;
+
+            foreach (var watch in _watches.RemoveAllForConnection(connectionId))
+            {
+                var reason = string.Equals(
+                    watch.ProctorConnectionId,
+                    connectionId,
+                    StringComparison.Ordinal)
+                    ? StreamWatchCodes.ProctorDisconnected
+                    : StreamWatchCodes.StudentDisconnected;
+
+                await _streamNotifier.NotifyWatchEndedAsync(
+                    watch.ProctorConnectionId,
+                    watch.StudentConnectionId,
+                    new StreamWatchEndedDto
+                    {
+                        WatchId = watch.WatchId,
+                        StudentSessionId = watch.StudentSessionId,
+                        Reason = reason,
+                        EndedAtUtc = DateTime.UtcNow,
+                    });
+
+                _logger.LogInformation(
+                    "Stream watch {WatchId} ended ({Reason}) after disconnect",
+                    watch.WatchId,
+                    reason);
+            }
+
+            var studentPresence = _presence.ClearStudentByConnection(connectionId);
+            if (studentPresence != null)
+            {
+                await _streamNotifier.NotifyStudentDisconnectedAsync(
+                    studentPresence.ExamSessionId,
+                    new StudentHubDisconnectedDto
+                    {
+                        StudentSessionId = studentPresence.StudentSessionId,
+                        DisconnectedAtUtc = DateTime.UtcNow,
+                        Reason = StreamWatchCodes.DisconnectReasonConnectionLost,
+                    });
+            }
+
+            _presence.ClearDashboardConnection(connectionId);
+
+            await base.OnDisconnectedAsync(exception);
         }
     }
 }

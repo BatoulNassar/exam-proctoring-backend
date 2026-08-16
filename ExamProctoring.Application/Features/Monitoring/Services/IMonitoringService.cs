@@ -25,6 +25,10 @@ namespace ExamProctoring.Application.Features.Monitoring.Services
         /// alert for the proctors when the type warrants one.
         /// </summary>
         /// <param name="studentId">Taken from the student's token, never the request.</param>
-        Task<ReportMonitoringEventResult> ReportEventAsync(ReportMonitoringEventRequest request, int studentId);
+        /// <param name="rawIdempotencyKey">Optional Idempotency-Key header value.</param>
+        Task<ReportMonitoringEventResult> ReportEventAsync(
+            ReportMonitoringEventRequest request,
+            int studentId,
+            string? rawIdempotencyKey = null);
     }
 }

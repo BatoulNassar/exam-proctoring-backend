@@ -63,6 +63,10 @@ namespace ExamProctoring.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("snapshot_url")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("status")
                         .IsRequired()
                         .HasMaxLength(20)

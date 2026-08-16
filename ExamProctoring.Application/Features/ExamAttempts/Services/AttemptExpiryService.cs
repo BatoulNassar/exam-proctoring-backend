@@ -1,4 +1,5 @@
 using ExamProctoring.Application.Common.Interfaces;
+using ExamProctoring.Application.Features.Monitoring.DTOs;
 using ExamProctoring.Domain.Enums;
 using Microsoft.Extensions.Logging;
 using System;
@@ -84,7 +85,12 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                     // After the commit, never before: telling a dashboard an attempt has ended
                     // and then rolling back would be worse than telling it late.
                     await _notifier.NotifyStudentStatusChangedAsync(
-                        attempt.ExamSessionId, attempt.StudentSessionId, outcome.Snapshot.Status.ToString());
+                        attempt.ExamSessionId,
+                        new StudentStatusChangedDto
+                        {
+                            StudentSessionId = attempt.StudentSessionId,
+                            NewStatus = outcome.Snapshot.Status.ToString(),
+                        });
                 }
                 catch (Exception ex)
                 {

@@ -3,6 +3,7 @@ using ExamProctoring.Application.Features.Alerts;
 using ExamProctoring.Application.Features.Alerts.DTOs;
 using ExamProctoring.Application.Features.AuditLogs.Services;
 using ExamProctoring.Application.Features.ExamAttempts.Services;
+using ExamProctoring.Application.Features.Monitoring.DTOs;
 using ExamProctoring.Domain.Entities;
 using ExamProctoring.Domain.Enums;
 using System;
@@ -94,7 +95,12 @@ namespace ExamProctoring.Application.Features.Alerts.Services
         {
             await _notifier.NotifyStudentSessionTerminatedAsync(studentSessionId, reason);
             await _notifier.NotifyStudentStatusChangedAsync(
-                examSessionId, studentSessionId, StudentSessionStatus.Terminated.ToString());
+                examSessionId,
+                new StudentStatusChangedDto
+                {
+                    StudentSessionId = studentSessionId,
+                    NewStatus = StudentSessionStatus.Terminated.ToString(),
+                });
         }
 
         public IReadOnlyList<AlertTypeDto> GetAlertTypes() => AlertTypeCatalog.All;
@@ -330,6 +336,8 @@ namespace ExamProctoring.Application.Features.Alerts.Services
                 SessionId = alert.StudentSession?.exam_session_id ?? 0,
                 SessionName = alert.StudentSession?.ExamSession?.title ?? "N/A",
                 TriggeredAt = alert.triggered_at,
+                StudentSessionId = alert.student_session_id,
+                SnapshotUrl = alert.snapshot_url,
                 ActionTaken = lastAction?.action_type.ToString(),
                 ActionNote = lastAction?.action_note,
                 ActionAt = lastAction?.acted_at

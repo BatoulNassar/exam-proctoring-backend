@@ -19,6 +19,7 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
             builder.Property(ae => ae.alert_type).HasMaxLength(50);
             builder.Property(ae => ae.severity).HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(ae => ae.status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            builder.Property(ae => ae.snapshot_url).HasMaxLength(500);
 
             builder.HasOne(ae => ae.StudentSession) 
                    .WithMany(ss => ss.Alerts)

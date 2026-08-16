@@ -3,6 +3,7 @@ using ExamProctoring.Application.Common.Interfaces;
 using ExamProctoring.Application.Common.Settings;
 using ExamProctoring.Application.Features.AuditLogs.Services;
 using ExamProctoring.Application.Features.ExamAttempts.DTOs;
+using ExamProctoring.Application.Features.Monitoring.DTOs;
 using ExamProctoring.Domain.Common;
 using ExamProctoring.Domain.Entities;
 using ExamProctoring.Domain.Enums;
@@ -52,6 +53,7 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
         private readonly ISystemSettingsRepository _settingsRepository;
         private readonly IAuditLogService _auditLog;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMonitoringNotifier _monitoringNotifier;
         private readonly StudentApplicationSettings _appSettings;
         private readonly MonitoringPolicySettings _monitoringPolicy;
         private readonly ILogger<ExamAttemptService> _logger;
@@ -66,6 +68,7 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
             ISystemSettingsRepository settingsRepository,
             IAuditLogService auditLog,
             IUnitOfWork unitOfWork,
+            IMonitoringNotifier monitoringNotifier,
             IOptions<StudentApplicationSettings> appSettings,
             IOptions<MonitoringPolicySettings> monitoringPolicy,
             ILogger<ExamAttemptService> logger)
@@ -79,6 +82,7 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
             _settingsRepository = settingsRepository;
             _auditLog = auditLog;
             _unitOfWork = unitOfWork;
+            _monitoringNotifier = monitoringNotifier;
             _appSettings = appSettings.Value;
             _monitoringPolicy = monitoringPolicy.Value;
             _logger = logger;
@@ -203,6 +207,15 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                 "Attempt {StudentSessionId} started for student {StudentId}, session {ExamSessionId} with {QuestionCount} question(s).",
                 attempt.StudentSessionId, studentId, examSessionId, questionCount);
 
+            await _monitoringNotifier.NotifyStudentStatusChangedAsync(
+                attempt.ExamSessionId,
+                new StudentStatusChangedDto
+                {
+                    StudentSessionId = attempt.StudentSessionId,
+                    NewStatus = StudentSessionStatus.InExam.ToString(),
+                    LoginAtUtc = startedAtUtc,
+                });
+
             // A brand-new attempt cannot have answers yet, but the same builder is used so the
             // two paths cannot drift apart in shape.
             return StartAttemptResult.Started(BuildStartResponse(
@@ -229,6 +242,15 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
             // Self-heal a paper that never landed because the process died between claiming the
             // start and writing the questions. Never re-shuffles an existing paper.
             var questionCount = await EnsurePaperMaterialisedAsync(attempt, studentId, nowUtc);
+
+            await _monitoringNotifier.NotifyStudentStatusChangedAsync(
+                attempt.ExamSessionId,
+                new StudentStatusChangedDto
+                {
+                    StudentSessionId = attempt.StudentSessionId,
+                    NewStatus = StudentSessionStatus.InExam.ToString(),
+                    LoginAtUtc = attempt.StartedAt,
+                });
 
             return StartAttemptResult.Resumed(BuildStartResponse(
                 attempt, attempt.StartedAt!.Value, attempt.EndsAt!.Value, questionCount, nowUtc, identity,
@@ -548,6 +570,18 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                 "Attempt {StudentSessionId} submit handled: outcome={Outcome} reason={Reason} receipt present={HasReceipt}.",
                 attempt.StudentSessionId, finalisation.Status, reason,
                 !string.IsNullOrEmpty(response.ReceiptCode));
+
+            if (finalisation.Status == AttemptFinalisationStatus.Finalised)
+            {
+                await _monitoringNotifier.NotifyStudentStatusChangedAsync(
+                    attempt.ExamSessionId,
+                    new StudentStatusChangedDto
+                    {
+                        StudentSessionId = attempt.StudentSessionId,
+                        NewStatus = finalisation.Snapshot.Status.ToString(),
+                        LoginAtUtc = attempt.StartedAt,
+                    });
+            }
 
             return finalisation.Status == AttemptFinalisationStatus.Finalised
                 ? SubmitAttemptResult.Finalised(response)
