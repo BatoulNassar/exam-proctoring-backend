@@ -519,7 +519,16 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                 ActorType = "Student",
             });
 
-            var response = BuildSubmitResponse(finalisation.Snapshot, nowUtc);
+            // A receipt without scores is worse than a retry: the student has left the exam and
+            // this response is the only thing their receipt screen can render. Failing here
+            // surfaces as 500 SERVER_ERROR, and because the attempt is already finalised the
+            // retry re-enters the already-finalised path and grades it then.
+            if (finalisation.Grading == null)
+                throw new InvalidOperationException(
+                    $"Attempt {attempt.StudentSessionId} finalised but could not be graded; " +
+                    "refusing to return a receipt without a grading snapshot.");
+
+            var response = BuildSubmitResponse(finalisation.Snapshot, finalisation.Grading, nowUtc);
 
             // Recorded only after finalisation is durable, so a crash can lose the record but
             // never claim a success that did not happen. A concurrent insert of the same key is
@@ -551,7 +560,8 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
 
         /// Every field except serverTimeUtc comes from frozen persisted state, which is what makes
         /// the receipt identical on the first call and on every retry afterwards.
-        private static SubmitAttemptResponse BuildSubmitResponse(AttemptFinalSnapshot snapshot, DateTime nowUtc) =>
+        private static SubmitAttemptResponse BuildSubmitResponse(
+            AttemptFinalSnapshot snapshot, GradingSnapshotDto grading, DateTime nowUtc) =>
             new()
             {
                 AttemptId = snapshot.AttemptPublicId,
@@ -561,6 +571,7 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                 AnsweredCount = snapshot.AnsweredCount,
                 QuestionCount = snapshot.QuestionCount,
                 ReceiptCode = snapshot.ReceiptCode,
+                Grading = grading,
             };
 
         /// The contract's terminal vocabulary. EXPIRED is reserved for the case where nobody

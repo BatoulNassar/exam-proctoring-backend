@@ -16,15 +16,18 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
 
         private readonly IAttemptFinalisationRepository _finalisationRepository;
         private readonly IStudentAnswerRepository _studentAnswerRepository;
+        private readonly IAttemptGradingService _gradingService;
         private readonly ILogger<AttemptFinalisationService> _logger;
 
         public AttemptFinalisationService(
             IAttemptFinalisationRepository finalisationRepository,
             IStudentAnswerRepository studentAnswerRepository,
+            IAttemptGradingService gradingService,
             ILogger<AttemptFinalisationService> logger)
         {
             _finalisationRepository = finalisationRepository;
             _studentAnswerRepository = studentAnswerRepository;
+            _gradingService = gradingService;
             _logger = logger;
         }
 
@@ -34,9 +37,13 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
 
             // Fast path: another trigger already finalised this attempt, and its frozen snapshot
             // is the answer for everyone from now on.
+            //
+            // Grading still runs here. An attempt that was finalised while grading failed would
+            // otherwise be stuck with no receipt forever; going through EnsureGraded on this
+            // path is what lets a retry recover it.
             var existing = await _finalisationRepository.GetSnapshotAsync(context.StudentSessionId);
             if (existing != null)
-                return AlreadyFinalised(existing);
+                return AlreadyFinalised(existing, await TryGradeAsync(context.StudentSessionId));
 
             var answeredCount = await CountAnsweredAsync(context.StudentSessionId);
 
@@ -94,12 +101,19 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                         {
                             Status = AttemptFinalisationStatus.Finalised,
                             Snapshot = result.Snapshot!,
+
+                            // Graded only after finalisation is durable. The ordering is what
+                            // makes a crash recoverable: an ungraded finalised attempt is
+                            // repairable by a retry, but a score written against an attempt
+                            // that never finalised would be a fiction.
+                            Grading = await TryGradeAsync(context.StudentSessionId),
                         };
                     }
 
                     // Lost the claim between the check above and the conditional update. The
                     // winner's snapshot is authoritative; nothing of ours was written.
-                    return AlreadyFinalised(result.Snapshot!);
+                    return AlreadyFinalised(
+                        result.Snapshot!, await TryGradeAsync(context.StudentSessionId));
                 }
                 catch (ReceiptCodeCollisionException) when (attempt < ReceiptAttempts)
                 {
@@ -113,8 +127,40 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
                 $"Could not generate a unique receipt code for attempt {context.StudentSessionId}.");
         }
 
-        private static AttemptFinalisationOutcome AlreadyFinalised(AttemptFinalSnapshot snapshot) =>
-            new() { Status = AttemptFinalisationStatus.AlreadyFinalised, Snapshot = snapshot };
+        private static AttemptFinalisationOutcome AlreadyFinalised(
+            AttemptFinalSnapshot snapshot, DTOs.GradingSnapshotDto? grading) =>
+            new()
+            {
+                Status = AttemptFinalisationStatus.AlreadyFinalised,
+                Snapshot = snapshot,
+                Grading = grading,
+            };
+
+        /// Grades the attempt, returning null rather than throwing when it cannot.
+        ///
+        /// Swallowing the exception here is deliberate and is NOT the same as ignoring it. The
+        /// attempt is already durably finalised at this point, and letting a grading fault
+        /// propagate would abort the expiry janitor's whole batch or fail a proctor's
+        /// termination - neither of which becomes more correct by also losing the finalisation.
+        /// The caller that actually owes the student a receipt (submit) checks for null and
+        /// fails loudly; everyone else logs and continues, and the next submit retry grades it.
+        private async Task<DTOs.GradingSnapshotDto?> TryGradeAsync(int studentSessionId)
+        {
+            try
+            {
+                return await _gradingService.EnsureGradedAsync(studentSessionId);
+            }
+            catch (Exception ex)
+            {
+                // The message names the attempt and the fault, never an answer key.
+                _logger.LogError(ex,
+                    "Auto-grading failed for finalised attempt {StudentSessionId}. The attempt stays " +
+                    "finalised and remains gradable; a submit retry will produce the snapshot.",
+                    studentSessionId);
+
+                return null;
+            }
+        }
 
         /// A persisted answer row does not by itself mean the question was answered: a cleared
         /// answer is stored deliberately so the client can distinguish "cleared" from "never

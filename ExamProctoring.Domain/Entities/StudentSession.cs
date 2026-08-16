@@ -68,6 +68,20 @@ namespace ExamProctoring.Domain.Entities
         /// Carries no personal data and is never accepted as an identifier or credential.
         public string? receipt_code { get; set; }
 
+        /// Server instant auto-grading completed for this attempt, and the marker that makes
+        /// grading a one-time operation.
+        ///
+        /// Written in the SAME transaction as the AutoScore rows, so it is never set without
+        /// them and they are never left half-written without it. That is what lets a retry tell
+        /// "already graded - replay the frozen snapshot" apart from "finalised but grading
+        /// failed - grade it now", which is the difference between a student getting their
+        /// receipt and never getting one.
+        ///
+        /// Deliberately separate from finalised_at: finalisation and grading are two distinct
+        /// commits, and an attempt can legitimately be finalised for a moment before it is
+        /// graded.
+        public DateTime? graded_at_utc { get; set; }
+
         public Student Student { get; set; }
         public ICollection<AttemptQuestion> AttemptQuestions { get; set; } = new List<AttemptQuestion>();
         public ICollection<AutoScore> AutoScores { set; get; } = new List<AutoScore>();

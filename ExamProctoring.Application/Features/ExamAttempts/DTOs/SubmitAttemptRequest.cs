@@ -37,5 +37,11 @@ namespace ExamProctoring.Application.Features.ExamAttempts.DTOs
         public int QuestionCount { get; set; }
 
         public string ReceiptCode { get; set; } = string.Empty;
+
+        /// The frozen grading snapshot. Required on every 2xx submit response, including
+        /// idempotent replays and already-finalised soft-200s: the client deletes its in-memory
+        /// paper when it leaves the exam, so this response is the only thing it can render the
+        /// receipt from.
+        public GradingSnapshotDto Grading { get; set; } = new();
     }
 }

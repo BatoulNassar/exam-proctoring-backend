@@ -28,6 +28,14 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
                    .WithMany(q => q.AutoScores)
                    .HasForeignKey(asCore => asCore.question_id)
                    .OnDelete(DeleteBehavior.Restrict);
+
+            // One score per question per attempt. This is the backstop that makes grading
+            // safe to retry: a concurrent or repeated grading pass fails on the index rather
+            // than silently doubling a student's marks, which is the kind of defect nobody
+            // would notice until a total looked wrong weeks later.
+            builder.HasIndex(asCore => new { asCore.student_session_id, asCore.question_id })
+                   .IsUnique();
+
             builder.ConfigureAuditFields();
         }
         }

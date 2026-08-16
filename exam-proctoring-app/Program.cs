@@ -132,6 +132,7 @@ builder.Services.AddScoped<IAttemptRepository, AttemptRepository>();
 builder.Services.AddScoped<IStudentAnswerRepository, StudentAnswerRepository>();
 builder.Services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
 builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerificationRepository>();
+builder.Services.AddScoped<IAttemptGradingRepository, AttemptGradingRepository>();
 builder.Services.AddScoped<IAttemptFinalisationRepository, AttemptFinalisationRepository>();
 builder.Services.AddScoped<IPermissionRoleRepository, PermissionRoleRepository>();
 builder.Services.AddScoped<IQuestionBankRepository, QuestionBankRepository>();
@@ -172,6 +173,10 @@ builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationSer
 // The single terminal-transition path shared by student submit, automatic expiry and proctor
 // termination. Registered before AlertService so the dependency direction stays obvious.
 builder.Services.AddScoped<IAttemptFinalisationService, AttemptFinalisationService>();
+
+// One-time auto-grading, invoked from the shared finalisation path so student submit, server
+// auto-expiry and proctor termination all produce a graded attempt by identical rules.
+builder.Services.AddScoped<IAttemptGradingService, AttemptGradingService>();
 builder.Services.AddScoped<IAttemptExpiryService, AttemptExpiryService>();
 
 // The identity gate, now backed by the real Identity Verification feature. The seam is

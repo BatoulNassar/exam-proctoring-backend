@@ -55,5 +55,14 @@ namespace ExamProctoring.Application.Features.ExamAttempts.Services
     {
         public AttemptFinalisationStatus Status { get; init; }
         public AttemptFinalSnapshot Snapshot { get; init; } = new();
+
+        /// The attempt's frozen grading snapshot, or null when grading did not complete.
+        ///
+        /// Nullable on purpose. Finalisation and grading are separate commits, and a grading
+        /// failure must not undo a finalisation that already succeeded - the student's answers
+        /// are safely frozen either way. Callers decide what a null means for them: the submit
+        /// endpoint refuses to return a receipt without it, while the expiry janitor and proctor
+        /// termination log it and move on, because a later submit retry will grade the attempt.
+        public DTOs.GradingSnapshotDto? Grading { get; init; }
     }
 }

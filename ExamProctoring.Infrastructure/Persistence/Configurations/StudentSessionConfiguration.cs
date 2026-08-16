@@ -51,6 +51,10 @@ namespace ExamProctoring.Infrastructure.Persistence.Configurations
 
            builder.Property(ss => ss.receipt_code).IsRequired(false).HasMaxLength(64);
 
+           // The one-time auto-grading marker. Nullable because an attempt is ungraded until it
+           // finalises, and because "finalised but not yet graded" is a real, recoverable state.
+           builder.Property(ss => ss.graded_at_utc).IsRequired(false);
+
            // Filtered so the uniqueness applies only to issued receipts. A plain unique index
            // would permit just ONE null and therefore only one un-finalised attempt in the
            // entire table.
