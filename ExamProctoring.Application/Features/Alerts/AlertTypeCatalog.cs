@@ -20,6 +20,9 @@ namespace ExamProctoring.Application.Features.Alerts
             new AlertTypeDto { Code = "MultipleFaces",  Label = "Multiple Faces",  Description = "More than one face detected" },
             new AlertTypeDto { Code = "AppSwitch",      Label = "App Switch",      Description = "Switched to another application or window" },
             new AlertTypeDto { Code = "AudioThreshold", Label = "Audio Threshold", Description = "High noise level detected on microphone" },
+            new AlertTypeDto { Code = "ShortcutAttempt", Label = "Shortcut Attempt", Description = "Blocked keyboard shortcut that can break kiosk lockdown" },
+            new AlertTypeDto { Code = "KioskFailure",   Label = "Kiosk Failure",   Description = "Exam client failed to enter or maintain kiosk mode" },
+            new AlertTypeDto { Code = "KioskEmergencyExit", Label = "Kiosk Emergency Exit", Description = "Student left kiosk mode using the emergency Escape key" },
         };
 
         /// <summary>
@@ -34,6 +37,9 @@ namespace ExamProctoring.Application.Features.Alerts
             { "MultipleFaces",  AlertSeverity.Critical },
             { "AppSwitch",      AlertSeverity.Warning },
             { "AudioThreshold", AlertSeverity.Warning },
+            { "ShortcutAttempt", AlertSeverity.Warning },
+            { "KioskFailure",   AlertSeverity.Critical },
+            { "KioskEmergencyExit", AlertSeverity.Critical },
         };
 
         public static IReadOnlyList<AlertTypeDto> All => Types;
