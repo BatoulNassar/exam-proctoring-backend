@@ -281,24 +281,24 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         },
 
+        // Logs the failure TYPE only, never the exception detail.
+        //
+        // Microsoft.IdentityModel embeds the offending token in several of its messages
+        // (IDX12741 "JWT: '<token>' must have three segments" and friends). SignalR carries the
+        // token in the /ws/monitoring query string, so writing the exception out would put a
+        // live bearer token in stdout - and on IIS that is a file on disk the moment anyone
+        // enables stdout logging. The type alone is enough to tell an expired token from a
+        // malformed one.
         OnAuthenticationFailed = context =>
         {
-            Console.WriteLine("AUTH FAILED");
-            Console.WriteLine(context.Exception);
+            context.HttpContext.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Jwt.Authentication")
+                .LogWarning("JWT authentication failed: {FailureType} on {Path}.",
+                    context.Exception.GetType().Name, context.HttpContext.Request.Path.Value);
+
             return Task.CompletedTask;
         },
-
-        OnTokenValidated = context =>
-        {
-            Console.WriteLine("TOKEN VALID");
-            return Task.CompletedTask;
-        },
-
-        OnChallenge = context =>
-        {
-            Console.WriteLine("CHALLENGE");
-            return Task.CompletedTask;
-        }
     };
 });
 
