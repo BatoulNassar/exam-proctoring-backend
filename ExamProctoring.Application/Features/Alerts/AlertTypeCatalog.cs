@@ -23,6 +23,7 @@ namespace ExamProctoring.Application.Features.Alerts
             new AlertTypeDto { Code = "ShortcutAttempt", Label = "Shortcut Attempt", Description = "Blocked keyboard shortcut that can break kiosk lockdown" },
             new AlertTypeDto { Code = "KioskFailure",   Label = "Kiosk Failure",   Description = "Exam client failed to enter or maintain kiosk mode" },
             new AlertTypeDto { Code = "KioskEmergencyExit", Label = "Kiosk Emergency Exit", Description = "Student left kiosk mode using the emergency Escape key" },
+            new AlertTypeDto { Code = "KioskRelocked", Label = "Kiosk Restored", Description = "Student re-entered kiosk mode after an emergency exit" },
         };
 
         /// <summary>
@@ -40,6 +41,7 @@ namespace ExamProctoring.Application.Features.Alerts
             { "ShortcutAttempt", AlertSeverity.Warning },
             { "KioskFailure",   AlertSeverity.Critical },
             { "KioskEmergencyExit", AlertSeverity.Critical },
+            { "KioskRelocked", AlertSeverity.Info },
         };
 
         public static IReadOnlyList<AlertTypeDto> All => Types;

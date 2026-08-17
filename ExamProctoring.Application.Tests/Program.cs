@@ -44,11 +44,13 @@ internal static class Program
             AlertMappingTests.MapToAlertDto_IncludesStudentSessionAndSnapshot);
         Run("AlertTypeCatalog_FaceAbsence_IsCritical",
             AlertCatalogTests.FaceAbsence_IsCritical);
+        Run("AlertTypeCatalog_KioskRelocked_IsInfo",
+            AlertCatalogTests.KioskRelocked_IsInfo);
         Run("MaxSnapshotDecodedBytes_Is400KiB",
             MonitoringConstantsTests.MaxSnapshotDecodedBytes_Is400KiB);
 
         Console.WriteLine(_failed == 0
-            ? "Passed! 14 tests."
+            ? "Passed! 15 tests."
             : $"Failed! {_failed} test(s).");
         return _failed == 0 ? 0 : 1;
     }
@@ -315,6 +317,12 @@ internal static class AlertCatalogTests
     {
         Assert.True(AlertTypeCatalog.IsKnown("FaceAbsence"));
         Assert.Equal(AlertSeverity.Critical, AlertTypeCatalog.GetSeverity("FaceAbsence"));
+    }
+
+    public static void KioskRelocked_IsInfo()
+    {
+        Assert.True(AlertTypeCatalog.IsKnown("KioskRelocked"));
+        Assert.Equal(AlertSeverity.Info, AlertTypeCatalog.GetSeverity("KioskRelocked"));
     }
 }
 
