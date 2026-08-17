@@ -104,7 +104,7 @@ builder.Services.AddOptions<StudentApplicationSettings>()
 builder.Services.AddOptions<MonitoringPolicySettings>()
     .Bind(builder.Configuration.GetSection("MonitoringPolicy"))
     .Validate(s => s.AudioNoiseThresholdDb < 0,
-        "MonitoringPolicy:AudioNoiseThresholdDb must be negative, for example -25.")
+        "MonitoringPolicy:AudioNoiseThresholdDb must be negative, for example -40.")
     .Validate(s => s.HeartbeatIntervalSeconds > 0,
         "MonitoringPolicy:HeartbeatIntervalSeconds must be greater than 0.")
     .Validate(s => s.ConnectivityLostThresholdSeconds > 0,
